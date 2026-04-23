@@ -1,7 +1,19 @@
 import 'package:flutter/foundation.dart';
 import '../models/user_preference.dart';
+import '../models/course.dart';
 import '../services/genetic_algorithm.dart';
 import '../services/real_courses.dart';
+
+// compute()는 최상위 함수만 허용 → 클래스 밖에 선언
+List<Timetable> _gaIsolateEntry(_GAPayload payload) {
+  return GeneticAlgorithmService().run(payload.courses, payload.pref);
+}
+
+class _GAPayload {
+  final List<Course> courses;
+  final UserPreference pref;
+  const _GAPayload(this.courses, this.pref);
+}
 
 class AppState extends ChangeNotifier {
   UserPreference _pref = const UserPreference(major: '컴퓨터공학', grade: 2);
@@ -23,11 +35,7 @@ class AppState extends ChangeNotifier {
 
   void toggleRequiredCourse(String courseId) {
     final ids = List<String>.from(_pref.requiredCourseIds);
-    if (ids.contains(courseId)) {
-      ids.remove(courseId);
-    } else {
-      ids.add(courseId);
-    }
+    ids.contains(courseId) ? ids.remove(courseId) : ids.add(courseId);
     _pref = _pref.copyWith(requiredCourseIds: ids);
     notifyListeners();
   }
@@ -40,8 +48,11 @@ class AppState extends ChangeNotifier {
   Future<void> runMatching() async {
     _isLoading = true;
     notifyListeners();
-    await Future.delayed(const Duration(milliseconds: 100));
-    _results = GeneticAlgorithmService().run(realCourses, _pref);
+    // compute()로 별도 isolate 실행 → UI 블로킹 방지
+    _results = await compute(
+      _gaIsolateEntry,
+      _GAPayload(realCourses, _pref),
+    );
     _selectedResultIndex = 0;
     _isLoading = false;
     notifyListeners();

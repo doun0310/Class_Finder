@@ -4,20 +4,34 @@ import '../services/genetic_algorithm.dart';
 
 class TimetableGrid extends StatelessWidget {
   final Timetable timetable;
-  const TimetableGrid({super.key, required this.timetable});
+  final int? highlightMinHour; // 사용자 설정 최소 시작 시간
+  final int? highlightMaxHour; // 사용자 설정 최대 종료 시간
+  const TimetableGrid({
+    super.key,
+    required this.timetable,
+    this.highlightMinHour,
+    this.highlightMaxHour,
+  });
 
   static const _days = ['월', '화', '수', '목', '금'];
   static const _startHour = 9;
-  static const _endHour = 20;
+  static const _endHour = 21;
   static const _cellH = 48.0;
-  static const _cellW = 60.0;
-  static const _timeColW = 40.0;
+  static const _cellW = 62.0;
+  static const _timeColW = 38.0;
   static const _headerH = 32.0;
 
+  // 과목별 구분이 명확한 파스텔 팔레트
   static const _palette = [
-    Color(0xFF4FC3F7), Color(0xFF81C784), Color(0xFFFFB74D),
-    Color(0xFFBA68C8), Color(0xFFFF8A65), Color(0xFF4DB6AC),
-    Color(0xFFF06292), Color(0xFFAED581), Color(0xFF90CAF9),
+    Color(0xFF5C9BD6), // blue
+    Color(0xFF5CAD76), // green
+    Color(0xFFE8885A), // orange
+    Color(0xFF9B72B8), // purple
+    Color(0xFFD95F6B), // red-pink
+    Color(0xFF4AABAA), // teal
+    Color(0xFFD4A843), // gold
+    Color(0xFF7494C4), // steel blue
+    Color(0xFF69B57A), // mint
   ];
 
   @override
@@ -40,7 +54,11 @@ class TimetableGrid extends StatelessWidget {
           // 그리드 배경
           CustomPaint(
             size: Size(totalW, totalH),
-            painter: _GridPainter(scheme),
+            painter: _GridPainter(
+              scheme: scheme,
+              minHour: highlightMinHour,
+              maxHour: highlightMaxHour,
+            ),
           ),
           // 요일 헤더
           ..._days.asMap().entries.map((e) => Positioned(
@@ -59,6 +77,7 @@ class TimetableGrid extends StatelessWidget {
           // 시간 레이블
           ...List.generate(_endHour - _startHour, (i) {
             final hour = _startHour + i;
+            final isLunch = hour == 12;
             return Positioned(
               left: 0,
               top: _headerH + i * _cellH,
@@ -67,7 +86,12 @@ class TimetableGrid extends StatelessWidget {
               child: Center(
                 child: Text('$hour',
                     style: TextStyle(
-                        fontSize: 11, color: scheme.outline)),
+                        fontSize: 11,
+                        color: isLunch
+                            ? scheme.primary.withValues(alpha: 0.6)
+                            : scheme.outline,
+                        fontWeight:
+                            isLunch ? FontWeight.bold : FontWeight.normal)),
               ),
             );
           }),
@@ -92,7 +116,7 @@ class TimetableGrid extends StatelessWidget {
   }
 }
 
-// ── 과목 블록 ─────────────────────────────────────────────────
+// ── 과목 블록 ─────────────────────────────────────────────────────
 class _CourseBlock extends StatelessWidget {
   final Course course;
   final Color color;
@@ -100,16 +124,13 @@ class _CourseBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = ThemeData.estimateBrightnessForColor(color) == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black87;
-
     return Container(
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
-            color: color.withValues(alpha: 0.4),
+            color: color.withValues(alpha: 0.35),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -121,10 +142,10 @@ class _CourseBlock extends StatelessWidget {
         children: [
           Text(
             course.name,
-            style: TextStyle(
+            style: const TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
-                color: textColor),
+                color: Colors.white),
             textAlign: TextAlign.center,
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
@@ -132,7 +153,8 @@ class _CourseBlock extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             course.professor,
-            style: TextStyle(fontSize: 9, color: textColor.withValues(alpha: 0.8)),
+            style: TextStyle(
+                fontSize: 9, color: Colors.white.withValues(alpha: 0.85)),
             textAlign: TextAlign.center,
             overflow: TextOverflow.ellipsis,
           ),
@@ -142,10 +164,12 @@ class _CourseBlock extends StatelessWidget {
   }
 }
 
-// ── 그리드 배경 ───────────────────────────────────────────────
+// ── 그리드 배경 ───────────────────────────────────────────────────
 class _GridPainter extends CustomPainter {
   final ColorScheme scheme;
-  _GridPainter(this.scheme);
+  final int? minHour;
+  final int? maxHour;
+  _GridPainter({required this.scheme, this.minHour, this.maxHour});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -173,29 +197,52 @@ class _GridPainter extends CustomPainter {
     canvas.drawLine(
         Offset(timeColW, 0), Offset(timeColW, size.height), strongLinePaint);
 
-    // 수평선 (시간)
+    // 수평선
     for (int i = 0; i <= endHour - startHour; i++) {
       final y = headerH + i * cellH;
-      // 정시선 진하게
-      canvas.drawLine(Offset(timeColW, y), Offset(size.width, y),
-          i % 1 == 0 ? linePaint : linePaint);
+      canvas.drawLine(Offset(timeColW, y), Offset(size.width, y), linePaint);
     }
 
-    // 수직선 (요일)
+    // 수직선
     for (int d = 0; d <= days; d++) {
       final x = timeColW + d * cellW;
       canvas.drawLine(Offset(x, headerH), Offset(x, size.height), linePaint);
     }
 
-    // 점심 시간대 (12~13) 음영
+    // 점심 시간대 (12~13) 강조
+    final lunchTop = headerH + (12 - startHour) * cellH;
     final lunchPaint = Paint()
-      ..color = scheme.surfaceContainerLow.withValues(alpha: 0.6);
+      ..color = scheme.primary.withValues(alpha: 0.06);
     canvas.drawRect(
-        Rect.fromLTWH(timeColW, headerH + (12 - startHour) * cellH,
-            days * cellW, cellH),
-        lunchPaint);
+        Rect.fromLTWH(timeColW, lunchTop, days * cellW, cellH), lunchPaint);
+
+    // 점심 레이블 라인 (살짝 진하게)
+    final lunchLinePaint = Paint()
+      ..color = scheme.primary.withValues(alpha: 0.2)
+      ..strokeWidth = 1;
+    canvas.drawLine(
+        Offset(timeColW, lunchTop), Offset(size.width, lunchTop), lunchLinePaint);
+
+    // 시간 범위 외 영역 음영 (사용자가 설정한 범위 밖)
+    if (minHour != null && minHour! > startHour) {
+      final restrictedH = (minHour! - startHour) * cellH;
+      canvas.drawRect(
+          Rect.fromLTWH(timeColW, headerH, days * cellW, restrictedH),
+          Paint()..color = scheme.errorContainer.withValues(alpha: 0.12));
+    }
+    if (maxHour != null && maxHour! < endHour) {
+      final allowedH = (maxHour! - startHour) * cellH;
+      final restrictedY = headerH + allowedH;
+      canvas.drawRect(
+          Rect.fromLTWH(timeColW, restrictedY, days * cellW,
+              size.height - restrictedY),
+          Paint()..color = scheme.errorContainer.withValues(alpha: 0.12));
+    }
   }
 
   @override
-  bool shouldRepaint(_GridPainter old) => old.scheme != scheme;
+  bool shouldRepaint(_GridPainter old) =>
+      old.scheme != scheme ||
+      old.minHour != minHour ||
+      old.maxHour != maxHour;
 }
