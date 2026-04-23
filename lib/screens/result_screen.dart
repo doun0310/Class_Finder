@@ -1,12 +1,64 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/app_state.dart';
+import '../services/auth_service.dart';
 import '../services/genetic_algorithm.dart';
+import '../services/timetable_repository.dart';
 import '../widgets/timetable_grid.dart';
 import '../models/course.dart';
 
 class ResultScreen extends StatelessWidget {
   const ResultScreen({super.key});
+
+  Future<void> _saveCurrent(BuildContext context, Timetable timetable) async {
+    final user = context.read<AuthService>().user;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('로그인이 필요합니다')));
+      return;
+    }
+    final controller = TextEditingController(
+      text: '시간표 ${DateTime.now().month}/${DateTime.now().day}',
+    );
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: const Text('시간표 저장'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: '이름',
+            hintText: '예: 2학기 1안',
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dCtx),
+              child: const Text('취소')),
+          FilledButton(
+            onPressed: () => Navigator.pop(dCtx, controller.text),
+            child: const Text('저장'),
+          ),
+        ],
+      ),
+    );
+    if (name == null) return;
+    await TimetableRepository().save(
+      userId: user.id,
+      name: name,
+      timetable: timetable,
+    );
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('시간표가 저장되었습니다'),
+        action: SnackBarAction(
+          label: '보기',
+          onPressed: () => Navigator.pushNamed(context, '/saved'),
+        ),
+      ));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,6 +87,13 @@ class ResultScreen extends StatelessWidget {
           title: const Text('추천 시간표'),
           centerTitle: true,
           actions: [
+            IconButton(
+              tooltip: '현재 시간표 저장',
+              icon: const Icon(Icons.bookmark_add_outlined),
+              onPressed: state.selectedTimetable == null
+                  ? null
+                  : () => _saveCurrent(ctx, state.selectedTimetable!),
+            ),
             TextButton.icon(
               onPressed: () => Navigator.popUntil(ctx, (r) => r.isFirst),
               icon: const Icon(Icons.tune, size: 18),

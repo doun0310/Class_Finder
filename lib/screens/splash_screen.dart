@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../services/auth_service.dart';
+import 'auth/login_screen.dart';
 import 'home_shell.dart';
+import 'onboarding_screen.dart';
+
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -16,17 +22,37 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 900));
     _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeIn);
     _scale = Tween(begin: 0.85, end: 1.0)
         .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack));
     _ctrl.forward();
-    Future.delayed(const Duration(milliseconds: 1800), () {
-      if (mounted) {
-        Navigator.pushReplacement(
-            context, MaterialPageRoute(builder: (_) => const HomeShell()));
-      }
-    });
+    _decideRoute();
+  }
+
+  Future<void> _decideRoute() async {
+    // 최소 스플래시 노출 시간
+    await Future.delayed(const Duration(milliseconds: 1200));
+    if (!mounted) return;
+
+    final auth = context.read<AuthService>();
+    await auth.loadSession();
+    final p = await SharedPreferences.getInstance();
+    final onboarded = p.getBool('onboarded') ?? false;
+
+    if (!mounted) return;
+
+    Widget next;
+    if (!onboarded) {
+      next = const OnboardingScreen();
+    } else if (auth.isAuthenticated) {
+      next = const HomeShell();
+    } else {
+      next = const LoginScreen();
+    }
+    Navigator.pushReplacement(
+        context, MaterialPageRoute(builder: (_) => next));
   }
 
   @override
@@ -53,7 +79,8 @@ class _SplashScreenState extends State<SplashScreen>
                   color: scheme.onPrimary,
                   borderRadius: BorderRadius.circular(24),
                 ),
-                child: Icon(Icons.auto_awesome, size: 48, color: scheme.primary),
+                child: Icon(Icons.auto_awesome,
+                    size: 48, color: scheme.primary),
               ),
               const SizedBox(height: 20),
               Text('ClassFinder',
@@ -63,10 +90,19 @@ class _SplashScreenState extends State<SplashScreen>
                       color: scheme.onPrimary,
                       letterSpacing: 1.2)),
               const SizedBox(height: 8),
-              Text('AI 기반 맞춤 시간표 자동 매칭',
+              Text('AI 기반 맞춤 시간표 매칭',
                   style: TextStyle(
                       fontSize: 14,
-                      color: scheme.onPrimary.withValues(alpha: 0.8))),
+                      color: scheme.onPrimary.withValues(alpha: 0.85))),
+              const SizedBox(height: 36),
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.2,
+                  color: scheme.onPrimary.withValues(alpha: 0.8),
+                ),
+              ),
             ]),
           ),
         ),
