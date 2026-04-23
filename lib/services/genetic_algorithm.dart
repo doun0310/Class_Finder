@@ -130,6 +130,7 @@ class GeneticAlgorithmService {
       final selected = [...required];
       for (final c in shuffled) {
         if (_totalCredits(selected) + c.credit > pref.maxCredits) continue;
+        if (_hasSameCourse(selected, c)) continue; // 같은 과목 다른 분반 중복 방지
         if (!_hasTimeConflict([...selected, c])) selected.add(c);
       }
       return _evaluate(selected, pref);
@@ -160,6 +161,7 @@ class GeneticAlgorithmService {
     final selected = [...required];
     for (final c in pool) {
       if (_totalCredits(selected) + c.credit > pref.maxCredits) continue;
+      if (_hasSameCourse(selected, c)) continue; // 같은 과목 다른 분반 중복 방지
       if (!_hasTimeConflict([...selected, c])) selected.add(c);
     }
     return _evaluate(selected, pref);
@@ -176,6 +178,7 @@ class GeneticAlgorithmService {
     final shuffled = [...electives]..shuffle(_rng);
     for (final candidate in shuffled) {
       if (_totalCredits(courses) + candidate.credit <= pref.maxCredits &&
+          !_hasSameCourse(courses, candidate) && // 같은 과목 다른 분반 중복 방지
           !_hasTimeConflict([...courses, candidate])) {
         courses.add(candidate);
         break;
@@ -329,6 +332,10 @@ class GeneticAlgorithmService {
   // ── 헬퍼 ──────────────────────────────────────────────────────
   int _totalCredits(List<Course> courses) =>
       courses.fold(0, (s, c) => s + c.credit);
+
+  // 동일 과목(분반 무관) 중복 여부: courseCode(ID에서 분반 제외 부분)가 같으면 중복
+  bool _hasSameCourse(List<Course> courses, Course candidate) =>
+      courses.any((c) => c.courseCode == candidate.courseCode);
 
   bool _hasTimeConflict(List<Course> courses) {
     final slots = courses.expand((c) => c.timeSlots).toList();
