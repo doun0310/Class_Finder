@@ -1,20 +1,26 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter_test/flutter_test.dart';
 import 'package:class_finder/main.dart';
-import 'package:provider/provider.dart';
 import 'package:class_finder/services/app_state.dart';
+import 'package:class_finder/services/auth_repository.dart';
+import 'package:class_finder/services/auth_service.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 
 void main() {
   testWidgets('App smoke test', (WidgetTester tester) async {
     await tester.pumpWidget(
-      ChangeNotifierProvider(create: (_) => AppState(), child: const ClassFinderApp()),
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(
+            create: (_) => AuthService(LocalAuthRepository()),
+          ),
+          ChangeNotifierProvider(create: (_) => AppState()),
+        ],
+        child: const ClassFinderApp(),
+      ),
     );
+
     expect(find.text('ClassFinder'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 1600));
+    await tester.pump();
   });
 }

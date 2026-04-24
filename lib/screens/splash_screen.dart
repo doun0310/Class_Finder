@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../services/auth_service.dart';
 import 'auth/login_screen.dart';
 import 'home_shell.dart';
@@ -15,33 +16,40 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
+  late final AnimationController _controller;
   late final Animation<double> _fade;
   late final Animation<double> _scale;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 900));
-    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeIn);
-    _scale = Tween(begin: 0.85, end: 1.0)
-        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack));
-    _ctrl.forward();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
+    _scale = Tween(
+      begin: 0.88,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
+    _controller.forward();
     _decideRoute();
   }
 
   Future<void> _decideRoute() async {
-    // 최소 스플래시 노출 시간
     await Future.delayed(const Duration(milliseconds: 1200));
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
     final auth = context.read<AuthService>();
     await auth.loadSession();
-    final p = await SharedPreferences.getInstance();
-    final onboarded = p.getBool('onboarded') ?? false;
+    final prefs = await SharedPreferences.getInstance();
+    final onboarded = prefs.getBool('onboarded') ?? false;
 
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
     Widget next;
     if (!onboarded) {
@@ -51,13 +59,13 @@ class _SplashScreenState extends State<SplashScreen>
     } else {
       next = const LoginScreen();
     }
-    Navigator.pushReplacement(
-        context, MaterialPageRoute(builder: (_) => next));
+
+    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => next));
   }
 
   @override
   void dispose() {
-    _ctrl.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
@@ -71,39 +79,47 @@ class _SplashScreenState extends State<SplashScreen>
           opacity: _fade,
           child: ScaleTransition(
             scale: _scale,
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Container(
-                width: 88,
-                height: 88,
-                decoration: BoxDecoration(
-                  color: scheme.onPrimary,
-                  borderRadius: BorderRadius.circular(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 92,
+                  height: 92,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  child: Icon(
+                    Icons.auto_awesome_rounded,
+                    size: 48,
+                    color: scheme.primary,
+                  ),
                 ),
-                child: Icon(Icons.auto_awesome,
-                    size: 48, color: scheme.primary),
-              ),
-              const SizedBox(height: 20),
-              Text('ClassFinder',
-                  style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: scheme.onPrimary,
-                      letterSpacing: 1.2)),
-              const SizedBox(height: 8),
-              Text('AI 기반 맞춤 시간표 매칭',
-                  style: TextStyle(
-                      fontSize: 14,
-                      color: scheme.onPrimary.withValues(alpha: 0.85))),
-              const SizedBox(height: 36),
-              SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.2,
-                  color: scheme.onPrimary.withValues(alpha: 0.8),
+                const SizedBox(height: 22),
+                Text(
+                  'ClassFinder',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.headlineMedium?.copyWith(color: Colors.white),
                 ),
-              ),
-            ]),
+                const SizedBox(height: 8),
+                Text(
+                  '선호 조건을 읽고 가장 잘 맞는 시간표를 찾습니다.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.white.withValues(alpha: 0.82),
+                  ),
+                ),
+                const SizedBox(height: 34),
+                SizedBox(
+                  width: 26,
+                  height: 26,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.4,
+                    color: Colors.white.withValues(alpha: 0.92),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

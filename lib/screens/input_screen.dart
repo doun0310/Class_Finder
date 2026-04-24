@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../models/course.dart';
 import '../models/user_preference.dart';
 import '../services/app_state.dart';
 import '../services/real_courses.dart';
+import '../theme/app_theme.dart';
 import '../widgets/matching_loading_overlay.dart';
 
 class InputScreen extends StatefulWidget {
   const InputScreen({super.key});
+
   @override
   State<InputScreen> createState() => _InputScreenState();
 }
@@ -23,15 +26,31 @@ class _InputScreenState extends State<InputScreen> {
   double _difficultyWeight = 0.2;
   final Set<String> _requiredIds = {};
 
-  // 시간 제약 (Where-Got-TimeTable 참조)
   int _minStartHour = 9;
   int _maxEndHour = 20;
   final Set<String> _preferredFreeDays = {};
   bool _requireLunchBreak = false;
 
   List<Course> get _requiredCourses => realCourses
-      .where((c) => c.isMajorRequired && (c.grade == 0 || c.grade <= _grade))
+      .where((course) => course.isMajorRequired && course.grade <= _grade)
       .toList();
+
+  List<List<Course>> get _requiredCourseGroups {
+    final grouped = <String, List<Course>>{};
+    for (final course in _requiredCourses) {
+      grouped.putIfAbsent(course.courseCode, () => []).add(course);
+    }
+
+    final groups = grouped.values.toList()
+      ..sort((a, b) => a.first.name.compareTo(b.first.name));
+    for (final group in groups) {
+      group.sort(
+        (a, b) =>
+            a.timeSlots.first.startHour.compareTo(b.timeSlots.first.startHour),
+      );
+    }
+    return groups;
+  }
 
   @override
   void initState() {
@@ -40,361 +59,501 @@ class _InputScreenState extends State<InputScreen> {
   }
 
   Future<void> _loadPrefs() async {
-    final p = await SharedPreferences.getInstance();
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) {
+      return;
+    }
+
     setState(() {
-      _grade            = p.getInt('grade')       ?? 2;
-      _maxCredits       = p.getInt('maxCredits')  ?? 18;
-      _preferMorning    = p.getBool('morning')    ?? false;
-      _avoidTeamProject = p.getBool('avoidTeam')  ?? false;
-      _freeTimeWeight   = p.getDouble('wFree')    ?? 0.4;
-      _ratingWeight     = p.getDouble('wRating')  ?? 0.3;
-      _difficultyWeight = p.getDouble('wDiff')    ?? 0.2;
-      _minStartHour     = p.getInt('minStart')    ?? 9;
-      _maxEndHour       = p.getInt('maxEnd')      ?? 20;
-      _requireLunchBreak = p.getBool('lunchBreak') ?? false;
-      final ids   = p.getStringList('requiredIds')   ?? [];
-      final fdays = p.getStringList('freeDays')      ?? [];
-      _requiredIds.clear(); _requiredIds.addAll(ids);
-      _preferredFreeDays.clear(); _preferredFreeDays.addAll(fdays);
+      _grade = prefs.getInt('grade') ?? 2;
+      _maxCredits = prefs.getInt('maxCredits') ?? 18;
+      _preferMorning = prefs.getBool('morning') ?? false;
+      _avoidTeamProject = prefs.getBool('avoidTeam') ?? false;
+      _freeTimeWeight = prefs.getDouble('wFree') ?? 0.4;
+      _ratingWeight = prefs.getDouble('wRating') ?? 0.3;
+      _difficultyWeight = prefs.getDouble('wDiff') ?? 0.2;
+      _minStartHour = prefs.getInt('minStart') ?? 9;
+      _maxEndHour = prefs.getInt('maxEnd') ?? 20;
+      _requireLunchBreak = prefs.getBool('lunchBreak') ?? false;
+      _requiredIds
+        ..clear()
+        ..addAll(prefs.getStringList('requiredIds') ?? []);
+      _preferredFreeDays
+        ..clear()
+        ..addAll(prefs.getStringList('freeDays') ?? []);
+      _dropInvalidSelections();
     });
   }
 
   Future<void> _savePrefs() async {
-    final p = await SharedPreferences.getInstance();
-    await p.setInt('grade', _grade);
-    await p.setInt('maxCredits', _maxCredits);
-    await p.setBool('morning', _preferMorning);
-    await p.setBool('avoidTeam', _avoidTeamProject);
-    await p.setDouble('wFree', _freeTimeWeight);
-    await p.setDouble('wRating', _ratingWeight);
-    await p.setDouble('wDiff', _difficultyWeight);
-    await p.setInt('minStart', _minStartHour);
-    await p.setInt('maxEnd', _maxEndHour);
-    await p.setBool('lunchBreak', _requireLunchBreak);
-    await p.setStringList('requiredIds', _requiredIds.toList());
-    await p.setStringList('freeDays', _preferredFreeDays.toList());
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('grade', _grade);
+    await prefs.setInt('maxCredits', _maxCredits);
+    await prefs.setBool('morning', _preferMorning);
+    await prefs.setBool('avoidTeam', _avoidTeamProject);
+    await prefs.setDouble('wFree', _freeTimeWeight);
+    await prefs.setDouble('wRating', _ratingWeight);
+    await prefs.setDouble('wDiff', _difficultyWeight);
+    await prefs.setInt('minStart', _minStartHour);
+    await prefs.setInt('maxEnd', _maxEndHour);
+    await prefs.setBool('lunchBreak', _requireLunchBreak);
+    await prefs.setStringList('requiredIds', _requiredIds.toList());
+    await prefs.setStringList('freeDays', _preferredFreeDays.toList());
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     return Consumer<AppState>(
-      builder: (ctx, state, _) => Stack(
-        children: [
-          Scaffold(
-            backgroundColor: theme.colorScheme.surface,
-            body: CustomScrollView(
-              slivers: [
-                SliverAppBar.large(
-                  title: const Text('ClassFinder'),
-                  centerTitle: false,
-                  backgroundColor: theme.colorScheme.primaryContainer,
-                  foregroundColor: theme.colorScheme.onPrimaryContainer,
-                  bottom: PreferredSize(
-                    preferredSize: const Size.fromHeight(24),
+      builder: (context, state, _) {
+        return Stack(
+          children: [
+            Scaffold(
+              body: CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          '유전 알고리즘 기반 맞춤 시간표 자동 매칭',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onPrimaryContainer
-                                  .withValues(alpha: 0.8)),
-                        ),
+                      padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
+                      child: _PreferenceHero(
+                        grade: _grade,
+                        maxCredits: _maxCredits,
+                        preferredFreeDays: _preferredFreeDays.length,
+                        requireLunchBreak: _requireLunchBreak,
                       ),
                     ),
                   ),
-                ),
-                SliverPadding(
-                  padding: const EdgeInsets.all(16),
-                  sliver: SliverList(
-                    delegate: SliverChildListDelegate([
-                      // ── 기본 정보 ──────────────────────────────
-                      _SectionCard(
-                        title: '기본 정보',
-                        icon: Icons.person_outline,
-                        children: [
-                          _LabeledRow(
-                            label: '학년',
-                            child: SegmentedButton<int>(
-                              segments: [1, 2, 3, 4]
-                                  .map((g) =>
-                                      ButtonSegment(value: g, label: Text('$g학년')))
-                                  .toList(),
-                              selected: {_grade},
-                              onSelectionChanged: (s) => setState(() {
-                                _grade = s.first;
-                                _requiredIds.removeWhere((id) =>
-                                    !_requiredCourses.any((c) => c.id == id));
-                              }),
-                              style: const ButtonStyle(
-                                  visualDensity: VisualDensity.compact),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          _LabeledRow(
-                            label: '최대 학점',
-                            child: SegmentedButton<int>(
-                              segments: [12, 15, 18, 21]
-                                  .map((c) =>
-                                      ButtonSegment(value: c, label: Text('$c')))
-                                  .toList(),
-                              selected: {_maxCredits},
-                              onSelectionChanged: (s) =>
-                                  setState(() => _maxCredits = s.first),
-                              style: const ButtonStyle(
-                                  visualDensity: VisualDensity.compact),
-                            ),
-                          ),
-                          const Divider(height: 20),
-                          SwitchListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: const Text('오전 수업 선호'),
-                            subtitle: const Text('오전에 수업이 배치되도록 최적화'),
-                            secondary: const Icon(Icons.wb_sunny_outlined),
-                            value: _preferMorning,
-                            onChanged: (v) => setState(() => _preferMorning = v),
-                          ),
-                          SwitchListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: const Text('팀 프로젝트 기피'),
-                            subtitle: const Text('팀플 과목을 최대한 제외'),
-                            secondary: const Icon(Icons.group_off_outlined),
-                            value: _avoidTeamProject,
-                            onChanged: (v) =>
-                                setState(() => _avoidTeamProject = v),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-
-                      // ── 시간 제약 (하드 제약) ──────────────────
-                      _SectionCard(
-                        title: '시간 제약',
-                        icon: Icons.access_time_outlined,
-                        subtitle: '하드 제약 — 위반 시 점수가 급격히 감소합니다',
-                        children: [
-                          _LabeledRow(
-                            label: '시작 시간',
-                            child: SegmentedButton<int>(
-                              segments: [9, 10, 11]
-                                  .map((h) => ButtonSegment(
-                                      value: h, label: Text('$h시')))
-                                  .toList(),
-                              selected: {_minStartHour},
-                              onSelectionChanged: (s) =>
-                                  setState(() => _minStartHour = s.first),
-                              style: const ButtonStyle(
-                                  visualDensity: VisualDensity.compact),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          _LabeledRow(
-                            label: '종료 시간',
-                            child: SegmentedButton<int>(
-                              segments: [18, 19, 20, 21]
-                                  .map((h) => ButtonSegment(
-                                      value: h, label: Text('$h시')))
-                                  .toList(),
-                              selected: {_maxEndHour},
-                              onSelectionChanged: (s) =>
-                                  setState(() => _maxEndHour = s.first),
-                              style: const ButtonStyle(
-                                  visualDensity: VisualDensity.compact),
-                            ),
-                          ),
-                          const Divider(height: 20),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text('공강 희망 요일',
-                                style: theme.textTheme.bodyMedium
-                                    ?.copyWith(fontWeight: FontWeight.w500)),
-                          ),
-                          const SizedBox(height: 8),
-                          _FreeDaySelector(
-                            selected: _preferredFreeDays,
-                            onChanged: (day) => setState(() {
-                              _preferredFreeDays.contains(day)
-                                  ? _preferredFreeDays.remove(day)
-                                  : _preferredFreeDays.add(day);
-                            }),
-                          ),
-                          const Divider(height: 20),
-                          SwitchListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: const Text('점심시간 확보'),
-                            subtitle: const Text('12~13시 수업 배치 최소화'),
-                            secondary: const Icon(Icons.lunch_dining_outlined),
-                            value: _requireLunchBreak,
-                            onChanged: (v) =>
-                                setState(() => _requireLunchBreak = v),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-
-                      // ── 선호도 가중치 (소프트 제약) ────────────
-                      _SectionCard(
-                        title: '선호도 가중치',
-                        icon: Icons.tune,
-                        subtitle: '소프트 제약 — 가중합으로 점수에 반영됩니다',
-                        children: [
-                          _WeightSlider(
-                            '공강 시간',
-                            Icons.free_breakfast_outlined,
-                            _freeTimeWeight,
-                            (v) => setState(() => _freeTimeWeight = v),
-                          ),
-                          _WeightSlider(
-                            '강의 평점',
-                            Icons.star_outline,
-                            _ratingWeight,
-                            (v) => setState(() => _ratingWeight = v),
-                          ),
-                          _WeightSlider(
-                            '낮은 난이도',
-                            Icons.school_outlined,
-                            _difficultyWeight,
-                            (v) => setState(() => _difficultyWeight = v),
-                          ),
-                          const SizedBox(height: 4),
-                          _WeightNote(
-                            freeW: _freeTimeWeight,
-                            ratingW: _ratingWeight,
-                            diffW: _difficultyWeight,
-                            teamAvoided: _avoidTeamProject,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-
-                      // ── 전공 필수 과목 ─────────────────────────
-                      if (_requiredCourses.isNotEmpty)
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 18, 16, 120),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate([
                         _SectionCard(
-                          title: '전공 필수 과목 선택',
-                          icon: Icons.check_circle_outline,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Text(
-                                '선택한 과목은 반드시 시간표에 포함됩니다.',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.outline),
+                          title: '기본 조건',
+                          subtitle: '학년과 최대 학점을 정하면 추천 엔진이 가능한 후보군을 먼저 정리합니다.',
+                          icon: Icons.tune_rounded,
+                          child: Column(
+                            children: [
+                              _ChoiceGroup<int>(
+                                label: '학년',
+                                value: _grade,
+                                options: const [1, 2, 3, 4],
+                                labelBuilder: (value) => '$value학년',
+                                onChanged: (value) {
+                                  setState(() {
+                                    _grade = value;
+                                    _dropInvalidSelections();
+                                  });
+                                },
                               ),
-                            ),
-                            ..._requiredCourses.map((c) => CheckboxListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  title: Text(c.name,
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w500)),
-                                  subtitle: Text(
-                                      '${c.professor} · ${c.credit}학점 · ${c.timeSummary}'),
-                                  secondary: CircleAvatar(
-                                    radius: 16,
-                                    backgroundColor:
-                                        theme.colorScheme.primaryContainer,
-                                    child: Text('${c.credit}',
-                                        style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold,
-                                            color: theme.colorScheme
-                                                .onPrimaryContainer)),
-                                  ),
-                                  value: _requiredIds.contains(c.id),
-                                  onChanged: (v) => setState(() => v!
-                                      ? _requiredIds.add(c.id)
-                                      : _requiredIds.remove(c.id)),
-                                )),
-                          ],
+                              const SizedBox(height: 18),
+                              _ChoiceGroup<int>(
+                                label: '최대 학점',
+                                value: _maxCredits,
+                                options: const [12, 15, 18, 21],
+                                labelBuilder: (value) => '$value학점',
+                                onChanged: (value) =>
+                                    setState(() => _maxCredits = value),
+                              ),
+                              const SizedBox(height: 20),
+                              _PreferenceToggle(
+                                icon: Icons.wb_sunny_outlined,
+                                title: '오전 수업 선호',
+                                subtitle: '이른 시간대 수업을 더 높은 우선순위로 반영합니다.',
+                                value: _preferMorning,
+                                onChanged: (value) =>
+                                    setState(() => _preferMorning = value),
+                              ),
+                              const SizedBox(height: 12),
+                              _PreferenceToggle(
+                                icon: Icons.group_off_outlined,
+                                title: '팀프로젝트 최소화',
+                                subtitle: '팀 기반 과목의 비중을 낮춰 더 안정적인 시간표를 만듭니다.',
+                                value: _avoidTeamProject,
+                                onChanged: (value) =>
+                                    setState(() => _avoidTeamProject = value),
+                              ),
+                            ],
+                          ),
                         ),
-                      const SizedBox(height: 24),
-
-                      FilledButton.icon(
-                        onPressed:
-                            state.isLoading ? null : () => _run(ctx, state),
-                        icon: const Icon(Icons.auto_awesome),
-                        label: const Text('시간표 자동 매칭',
-                            style: TextStyle(fontSize: 16)),
-                        style: FilledButton.styleFrom(
-                            minimumSize: const Size.fromHeight(54)),
+                        const SizedBox(height: 14),
+                        _SectionCard(
+                          title: '시간 제약',
+                          subtitle:
+                              '불가능한 시간대는 강하게 제외하고, 점심 시간과 공강 요일은 우선적으로 맞춥니다.',
+                          icon: Icons.schedule_rounded,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _ChoiceGroup<int>(
+                                label: '최소 시작',
+                                value: _minStartHour,
+                                options: const [9, 10, 11],
+                                labelBuilder: (value) => '$value:00',
+                                onChanged: (value) =>
+                                    setState(() => _minStartHour = value),
+                              ),
+                              const SizedBox(height: 18),
+                              _ChoiceGroup<int>(
+                                label: '최대 종료',
+                                value: _maxEndHour,
+                                options: const [18, 19, 20, 21],
+                                labelBuilder: (value) => '$value:00',
+                                onChanged: (value) =>
+                                    setState(() => _maxEndHour = value),
+                              ),
+                              const SizedBox(height: 18),
+                              Text(
+                                '비우고 싶은 요일',
+                                style: theme.textTheme.titleSmall,
+                              ),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 10,
+                                runSpacing: 10,
+                                children: weekdays.map((day) {
+                                  final selected = _preferredFreeDays.contains(
+                                    day,
+                                  );
+                                  return FilterChip(
+                                    label: Text('$day요일'),
+                                    selected: selected,
+                                    onSelected: (_) {
+                                      setState(() {
+                                        if (selected) {
+                                          _preferredFreeDays.remove(day);
+                                        } else {
+                                          _preferredFreeDays.add(day);
+                                        }
+                                      });
+                                    },
+                                    showCheckmark: false,
+                                  );
+                                }).toList(),
+                              ),
+                              const SizedBox(height: 18),
+                              _PreferenceToggle(
+                                icon: Icons.lunch_dining_outlined,
+                                title: '점심 시간 확보',
+                                subtitle: '12시부터 1시 사이 수업 배치를 가능한 한 피합니다.',
+                                value: _requireLunchBreak,
+                                onChanged: (value) =>
+                                    setState(() => _requireLunchBreak = value),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        _SectionCard(
+                          title: '추천 가중치',
+                          subtitle: '점수식이 어떤 기준을 더 강하게 반영할지 직접 조절할 수 있습니다.',
+                          icon: Icons.equalizer_rounded,
+                          child: Column(
+                            children: [
+                              _WeightSlider(
+                                title: '공강과 여유 시간',
+                                value: _freeTimeWeight,
+                                color: AppTheme.blue,
+                                onChanged: (value) =>
+                                    setState(() => _freeTimeWeight = value),
+                              ),
+                              _WeightSlider(
+                                title: '강의 평점',
+                                value: _ratingWeight,
+                                color: AppTheme.cyan,
+                                onChanged: (value) =>
+                                    setState(() => _ratingWeight = value),
+                              ),
+                              _WeightSlider(
+                                title: '난이도 안정성',
+                                value: _difficultyWeight,
+                                color: AppTheme.coral,
+                                onChanged: (value) =>
+                                    setState(() => _difficultyWeight = value),
+                              ),
+                              const SizedBox(height: 6),
+                              _WeightSummary(
+                                freeTimeWeight: _freeTimeWeight,
+                                ratingWeight: _ratingWeight,
+                                difficultyWeight: _difficultyWeight,
+                                avoidTeamProject: _avoidTeamProject,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        if (_requiredCourseGroups.isNotEmpty)
+                          _SectionCard(
+                            title: '필수 과목 분반 선택',
+                            subtitle:
+                                '같은 과목의 여러 분반을 동시에 넣지 않도록 과목별 한 분반만 선택됩니다.',
+                            icon: Icons.library_books_rounded,
+                            child: Column(
+                              children: _requiredCourseGroups
+                                  .map(
+                                    (group) => Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 12,
+                                      ),
+                                      child: _RequiredCourseSelector(
+                                        courses: group,
+                                        selectedId: _selectedIdFor(group),
+                                        onSelect: (course) => setState(
+                                          () => _selectRequiredCourse(course),
+                                        ),
+                                        onClear: () => setState(
+                                          () => _clearRequiredCourse(
+                                            group.first.courseCode,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ),
+                      ]),
+                    ),
+                  ),
+                ],
+              ),
+              bottomNavigationBar: SafeArea(
+                minimum: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(color: theme.colorScheme.outlineVariant),
+                    boxShadow: [
+                      BoxShadow(
+                        color: theme.colorScheme.shadow.withValues(alpha: 0.08),
+                        blurRadius: 18,
+                        offset: const Offset(0, 10),
                       ),
-                      const SizedBox(height: 32),
-                    ]),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: FilledButton.icon(
+                      onPressed: state.isLoading
+                          ? null
+                          : () => _run(context, state),
+                      icon: const Icon(Icons.auto_awesome_rounded),
+                      label: const Text('추천 시간표 생성'),
+                    ),
                   ),
                 ),
-              ],
+              ),
+            ),
+            if (state.isLoading) const MatchingLoadingOverlay(),
+          ],
+        );
+      },
+    );
+  }
+
+  String? _selectedIdFor(List<Course> group) {
+    for (final course in group) {
+      if (_requiredIds.contains(course.id)) {
+        return course.id;
+      }
+    }
+    return null;
+  }
+
+  void _selectRequiredCourse(Course course) {
+    _requiredIds.removeWhere((id) => id.startsWith(course.courseCode));
+    _requiredIds.add(course.id);
+  }
+
+  void _clearRequiredCourse(String courseCode) {
+    _requiredIds.removeWhere((id) => id.startsWith(courseCode));
+  }
+
+  void _dropInvalidSelections() {
+    final validIds = _requiredCourses.map((course) => course.id).toSet();
+    _requiredIds.removeWhere((id) => !validIds.contains(id));
+  }
+
+  Future<void> _run(BuildContext context, AppState state) async {
+    await _savePrefs();
+
+    state.updatePref(
+      UserPreference(
+        major: '컴퓨터공학과',
+        grade: _grade,
+        maxCredits: _maxCredits,
+        preferMorning: _preferMorning,
+        avoidTeamProject: _avoidTeamProject,
+        freeTimeWeight: _freeTimeWeight,
+        ratingWeight: _ratingWeight,
+        difficultyWeight: _difficultyWeight,
+        requiredCourseIds: _requiredIds.toList(),
+        minStartHour: _minStartHour,
+        maxEndHour: _maxEndHour,
+        preferredFreeDays: _preferredFreeDays.toList(),
+        requireLunchBreak: _requireLunchBreak,
+      ),
+    );
+    await state.runMatching();
+    if (context.mounted) {
+      Navigator.pushNamed(context, '/results');
+    }
+  }
+}
+
+class _PreferenceHero extends StatelessWidget {
+  final int grade;
+  final int maxCredits;
+  final int preferredFreeDays;
+  final bool requireLunchBreak;
+
+  const _PreferenceHero({
+    required this.grade,
+    required this.maxCredits,
+    required this.preferredFreeDays,
+    required this.requireLunchBreak,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              '개인화 추천 설정',
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: theme.colorScheme.onPrimaryContainer,
+              ),
             ),
           ),
-          if (state.isLoading) const MatchingLoadingOverlay(),
+          const SizedBox(height: 16),
+          Text(
+            '조건을 더 정확하게 입력할수록 추천 정합도가 올라갑니다.',
+            style: theme.textTheme.headlineSmall?.copyWith(letterSpacing: -0.6),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '유전 알고리즘이 분반 조합을 탐색한 뒤, 공강 집중도와 학점 충실도까지 다시 보정합니다.',
+            style: theme.textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 18),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _HeroPill(icon: Icons.school_rounded, label: '$grade학년 기준'),
+              _HeroPill(
+                icon: Icons.credit_score_rounded,
+                label: '$maxCredits학점 상한',
+              ),
+              _HeroPill(
+                icon: Icons.event_available_rounded,
+                label: '공강 희망 $preferredFreeDays일',
+              ),
+              _HeroPill(
+                icon: Icons.lunch_dining_rounded,
+                label: requireLunchBreak ? '점심 시간 우선' : '점심 제약 없음',
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
+}
 
-  Future<void> _run(BuildContext ctx, AppState state) async {
-    await _savePrefs();
-    state.updatePref(UserPreference(
-      major: '컴퓨터공학',
-      grade: _grade,
-      maxCredits: _maxCredits,
-      preferMorning: _preferMorning,
-      avoidTeamProject: _avoidTeamProject,
-      freeTimeWeight: _freeTimeWeight,
-      ratingWeight: _ratingWeight,
-      difficultyWeight: _difficultyWeight,
-      requiredCourseIds: _requiredIds.toList(),
-      minStartHour: _minStartHour,
-      maxEndHour: _maxEndHour,
-      preferredFreeDays: _preferredFreeDays.toList(),
-      requireLunchBreak: _requireLunchBreak,
-    ));
-    await state.runMatching();
-    if (ctx.mounted) Navigator.pushNamed(ctx, '/results');
+class _HeroPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _HeroPill({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: theme.colorScheme.primary),
+          const SizedBox(width: 6),
+          Text(label, style: theme.textTheme.labelLarge),
+        ],
+      ),
+    );
   }
 }
 
-// ── 섹션 카드 ─────────────────────────────────────────────────────
 class _SectionCard extends StatelessWidget {
   final String title;
+  final String subtitle;
   final IconData icon;
-  final String? subtitle;
-  final List<Widget> children;
+  final Widget child;
+
   const _SectionCard({
     required this.title,
+    required this.subtitle,
     required this.icon,
-    this.subtitle,
-    required this.children,
+    required this.child,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: theme.colorScheme.outlineVariant)),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(children: [
-              Icon(icon, size: 18, color: theme.colorScheme.primary),
-              const SizedBox(width: 8),
-              Text(title,
-                  style: theme.textTheme.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.bold)),
-            ]),
-            if (subtitle != null) ...[
-              const SizedBox(height: 4),
-              Text(subtitle!,
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: theme.colorScheme.outline)),
-            ],
-            const SizedBox(height: 12),
-            ...children,
+            Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: theme.textTheme.titleMedium),
+                      const SizedBox(height: 4),
+                      Text(subtitle, style: theme.textTheme.bodySmall),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            child,
           ],
         ),
       ),
@@ -402,118 +561,251 @@ class _SectionCard extends StatelessWidget {
   }
 }
 
-// ── 레이블 + 위젯 행 ──────────────────────────────────────────────
-class _LabeledRow extends StatelessWidget {
+class _ChoiceGroup<T> extends StatelessWidget {
   final String label;
-  final Widget child;
-  const _LabeledRow({required this.label, required this.child});
+  final T value;
+  final List<T> options;
+  final String Function(T value) labelBuilder;
+  final ValueChanged<T> onChanged;
 
-  @override
-  Widget build(BuildContext context) {
-    return Row(children: [
-      SizedBox(
-          width: 64,
-          child: Text(label,
-              style: Theme.of(context).textTheme.bodyMedium)),
-      const SizedBox(width: 8),
-      Expanded(child: Align(alignment: Alignment.centerRight, child: child)),
-    ]);
-  }
-}
-
-// ── 공강 요일 선택 칩 ─────────────────────────────────────────────
-class _FreeDaySelector extends StatelessWidget {
-  final Set<String> selected;
-  final ValueChanged<String> onChanged;
-  const _FreeDaySelector({required this.selected, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    const days = ['월', '화', '수', '목', '금'];
-    return Wrap(
-      spacing: 8,
-      children: days.map((day) {
-        final isSelected = selected.contains(day);
-        return FilterChip(
-          label: Text('$day요일'),
-          selected: isSelected,
-          onSelected: (_) => onChanged(day),
-          showCheckmark: false,
-          selectedColor:
-              Theme.of(context).colorScheme.primaryContainer,
-          labelStyle: TextStyle(
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            color: isSelected
-                ? Theme.of(context).colorScheme.onPrimaryContainer
-                : null,
-          ),
-        );
-      }).toList(),
-    );
-  }
-}
-
-// ── 가중치 슬라이더 ───────────────────────────────────────────────
-class _WeightSlider extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final double value;
-  final ValueChanged<double> onChanged;
-  const _WeightSlider(this.label, this.icon, this.value, this.onChanged);
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(children: [
-      Icon(icon, size: 16, color: Theme.of(context).colorScheme.secondary),
-      const SizedBox(width: 8),
-      SizedBox(
-          width: 72,
-          child: Text(label, style: Theme.of(context).textTheme.bodySmall)),
-      Expanded(
-          child: Slider(
-              value: value,
-              onChanged: onChanged,
-              divisions: 10,
-              min: 0,
-              max: 1)),
-      SizedBox(
-          width: 36,
-          child: Text('${(value * 100).round()}%',
-              style: Theme.of(context).textTheme.bodySmall,
-              textAlign: TextAlign.end)),
-    ]);
-  }
-}
-
-// ── 가중치 안내 ───────────────────────────────────────────────────
-class _WeightNote extends StatelessWidget {
-  final double freeW, ratingW, diffW;
-  final bool teamAvoided;
-  const _WeightNote({
-    required this.freeW,
-    required this.ratingW,
-    required this.diffW,
-    required this.teamAvoided,
+  const _ChoiceGroup({
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.labelBuilder,
+    required this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    final teamW = teamAvoided ? 0.2 : 0.0;
-    final total = freeW + ratingW + diffW + teamW;
-    return Row(children: [
-      Icon(Icons.info_outline, size: 14, color: Colors.grey.shade500),
-      const SizedBox(width: 4),
-      Expanded(
-        child: Text(
-          teamAvoided
-              ? '팀플 기피 가중치(20%) 포함 · 정규화 후 반영됩니다 (합계 ${(total * 100).round()}%)'
-              : '가중치는 정규화 후 반영됩니다 (합계 ${(total * 100).round()}%)',
-          style: Theme.of(context)
-              .textTheme
-              .bodySmall
-              ?.copyWith(color: Colors.grey.shade500),
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: theme.textTheme.titleSmall),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: options.map((option) {
+            final selected = value == option;
+            return ChoiceChip(
+              label: Text(labelBuilder(option)),
+              selected: selected,
+              onSelected: (_) => onChanged(option),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+}
+
+class _PreferenceToggle extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  const _PreferenceToggle({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: theme.colorScheme.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: theme.textTheme.titleSmall),
+                const SizedBox(height: 4),
+                Text(subtitle, style: theme.textTheme.bodySmall),
+              ],
+            ),
+          ),
+          Switch(value: value, onChanged: onChanged),
+        ],
+      ),
+    );
+  }
+}
+
+class _WeightSlider extends StatelessWidget {
+  final String title;
+  final double value;
+  final Color color;
+  final ValueChanged<double> onChanged;
+
+  const _WeightSlider({
+    required this.title,
+    required this.value,
+    required this.color,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Text(title, style: theme.textTheme.titleSmall),
+                const Spacer(),
+                Text(
+                  '${(value * 100).round()}%',
+                  style: theme.textTheme.labelLarge?.copyWith(color: color),
+                ),
+              ],
+            ),
+            Slider(
+              value: value,
+              onChanged: onChanged,
+              min: 0,
+              max: 1,
+              divisions: 10,
+              activeColor: color,
+            ),
+          ],
         ),
       ),
-    ]);
+    );
+  }
+}
+
+class _WeightSummary extends StatelessWidget {
+  final double freeTimeWeight;
+  final double ratingWeight;
+  final double difficultyWeight;
+  final bool avoidTeamProject;
+
+  const _WeightSummary({
+    required this.freeTimeWeight,
+    required this.ratingWeight,
+    required this.difficultyWeight,
+    required this.avoidTeamProject,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final teamWeight = avoidTeamProject ? 0.2 : 0.0;
+    final total = freeTimeWeight + ratingWeight + difficultyWeight + teamWeight;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.42),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Text(
+        avoidTeamProject
+            ? '팀프로젝트 회피 보정까지 포함해 총 ${(total * 100).round()}% 비중으로 점수를 계산합니다.'
+            : '설정한 세 가중치를 중심으로 점수를 계산합니다. 현재 총합은 ${(total * 100).round()}%입니다.',
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.onPrimaryContainer,
+        ),
+      ),
+    );
+  }
+}
+
+class _RequiredCourseSelector extends StatelessWidget {
+  final List<Course> courses;
+  final String? selectedId;
+  final ValueChanged<Course> onSelect;
+  final VoidCallback onClear;
+
+  const _RequiredCourseSelector({
+    required this.courses,
+    required this.selectedId,
+    required this.onSelect,
+    required this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final course = courses.first;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(course.name, style: theme.textTheme.titleSmall),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${course.grade}학년 · ${course.credit}학점',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              if (selectedId != null)
+                TextButton(onPressed: onClear, child: const Text('선택 해제')),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: courses.map((section) {
+              final selected = selectedId == section.id;
+              return ChoiceChip(
+                selected: selected,
+                showCheckmark: false,
+                label: Text('${section.section}분반 · ${section.timeSummary}'),
+                onSelected: (_) => onSelect(section),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
   }
 }

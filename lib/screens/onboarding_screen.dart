@@ -50,68 +50,71 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final isLast = _page == _pages.length - 1;
     return Scaffold(
       body: SafeArea(
-        child: Column(children: [
-          // Skip 버튼
-          Align(
-            alignment: Alignment.centerRight,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: TextButton(
-                onPressed: _finish,
-                child: const Text('건너뛰기'),
+        child: Column(
+          children: [
+            // Skip 버튼
+            Align(
+              alignment: Alignment.centerRight,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: TextButton(
+                  onPressed: _finish,
+                  child: const Text('건너뛰기'),
+                ),
               ),
             ),
-          ),
-          Expanded(
-            child: PageView.builder(
-              controller: _controller,
-              itemCount: _pages.length,
-              onPageChanged: (i) => setState(() => _page = i),
-              itemBuilder: (_, i) => _OnboardingPage(data: _pages[i]),
+            Expanded(
+              child: PageView.builder(
+                controller: _controller,
+                itemCount: _pages.length,
+                onPageChanged: (i) => setState(() => _page = i),
+                itemBuilder: (_, i) => _OnboardingPage(data: _pages[i]),
+              ),
             ),
-          ),
-          // 인디케이터
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(
-                _pages.length,
-                (i) => AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  width: _page == i ? 24 : 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: _page == i
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.outlineVariant,
-                    borderRadius: BorderRadius.circular(4),
+            // 인디케이터
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                  _pages.length,
+                  (i) => AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    width: _page == i ? 24 : 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: _page == i
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.outlineVariant,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-          // 다음/시작 버튼
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
-            child: FilledButton(
-              onPressed: () {
-                if (isLast) {
-                  _finish();
-                } else {
-                  _controller.nextPage(
-                    duration: const Duration(milliseconds: 280),
-                    curve: Curves.easeOut,
-                  );
-                }
-              },
-              style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(54)),
-              child: Text(isLast ? '시작하기' : '다음'),
+            // 다음/시작 버튼
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+              child: FilledButton(
+                onPressed: () {
+                  if (isLast) {
+                    _finish();
+                  } else {
+                    _controller.nextPage(
+                      duration: const Duration(milliseconds: 280),
+                      curve: Curves.easeOut,
+                    );
+                  }
+                },
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(54),
+                ),
+                child: Text(isLast ? '시작하기' : '다음'),
+              ),
             ),
-          ),
-        ]),
+          ],
+        ),
       ),
     );
   }
@@ -152,16 +155,22 @@ class _OnboardingPage extends StatelessWidget {
             child: Icon(data.icon, size: 64, color: data.color),
           ),
           const SizedBox(height: 36),
-          Text(data.title,
-              style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.4)),
+          Text(
+            data.title,
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.4,
+            ),
+          ),
           const SizedBox(height: 12),
-          Text(data.description,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  height: 1.5)),
+          Text(
+            data.description,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              height: 1.5,
+            ),
+          ),
         ],
       ),
     );

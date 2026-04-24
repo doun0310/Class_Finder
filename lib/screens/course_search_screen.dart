@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+
 import '../models/course.dart';
 import '../services/real_courses.dart';
+import '../theme/app_theme.dart';
 
 enum SortMode { name, rating, difficulty, credit }
 
@@ -12,108 +14,184 @@ class CourseSearchScreen extends StatefulWidget {
 }
 
 class _CourseSearchScreenState extends State<CourseSearchScreen> {
-  final _ctrl = TextEditingController();
+  final _controller = TextEditingController();
   String _query = '';
-  int? _gradeFilter;       // null = 전체
-  bool? _requiredFilter;   // null=전체, true=전필, false=전선
-  bool? _teamFilter;       // null=전체, true=팀플, false=비팀플
-  SortMode _sort = SortMode.name;
+  int? _gradeFilter;
+  bool? _requiredFilter;
+  bool? _teamFilter;
+  SortMode _sort = SortMode.rating;
 
   List<Course> get _filtered {
-    var list = realCourses.where((c) {
-      if (_query.isNotEmpty &&
-          !c.name.contains(_query) &&
-          !c.professor.contains(_query)) { return false; }
-      if (_gradeFilter != null && c.grade != _gradeFilter) return false;
-      if (_requiredFilter != null && c.isMajorRequired != _requiredFilter) return false;
-      if (_teamFilter != null && c.hasTeamProject != _teamFilter) return false;
+    final query = _query.trim();
+    final normalized = query.toLowerCase();
+
+    final filtered = realCourses.where((course) {
+      if (normalized.isNotEmpty) {
+        final matched =
+            course.name.toLowerCase().contains(normalized) ||
+            course.professor.toLowerCase().contains(normalized) ||
+            course.timeSummary.toLowerCase().contains(normalized);
+        if (!matched) {
+          return false;
+        }
+      }
+      if (_gradeFilter != null && course.grade != _gradeFilter) {
+        return false;
+      }
+      if (_requiredFilter != null &&
+          course.isMajorRequired != _requiredFilter) {
+        return false;
+      }
+      if (_teamFilter != null && course.hasTeamProject != _teamFilter) {
+        return false;
+      }
       return true;
     }).toList();
 
     switch (_sort) {
       case SortMode.name:
-        list.sort((a, b) => a.name.compareTo(b.name));
+        filtered.sort((a, b) => a.name.compareTo(b.name));
       case SortMode.rating:
-        list.sort((a, b) => b.rating.compareTo(a.rating));
+        filtered.sort((a, b) => b.rating.compareTo(a.rating));
       case SortMode.difficulty:
-        list.sort((a, b) => a.difficulty.compareTo(b.difficulty));
+        filtered.sort((a, b) => a.difficulty.compareTo(b.difficulty));
       case SortMode.credit:
-        list.sort((a, b) => b.credit.compareTo(a.credit));
+        filtered.sort((a, b) => b.credit.compareTo(a.credit));
     }
-    return list;
+
+    return filtered;
   }
 
   @override
   void dispose() {
-    _ctrl.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final courses = _filtered;
+    final theme = Theme.of(context);
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('과목 탐색'),
-        centerTitle: false,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(56),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-            child: SearchBar(
-              controller: _ctrl,
-              hintText: '과목명 또는 교수명 검색',
-              leading: const Icon(Icons.search),
-              trailing: [
-                if (_query.isNotEmpty)
-                  IconButton(
-                    icon: const Icon(Icons.clear),
-                    onPressed: () {
-                      _ctrl.clear();
-                      setState(() => _query = '');
-                    },
-                  ),
-              ],
-              onChanged: (v) => setState(() => _query = v),
+      body: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(32),
+                  border: Border.all(color: theme.colorScheme.outlineVariant),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('강의 탐색', style: theme.textTheme.headlineSmall),
+                    const SizedBox(height: 8),
+                    Text(
+                      '학년, 평점, 팀프로젝트 여부까지 빠르게 필터링해 분반을 비교하세요.',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 16),
+                    SearchBar(
+                      controller: _controller,
+                      hintText: '과목명, 교수명, 시간대로 검색',
+                      leading: const Icon(Icons.search_rounded),
+                      trailing: [
+                        if (_query.isNotEmpty)
+                          IconButton(
+                            onPressed: () {
+                              _controller.clear();
+                              setState(() => _query = '');
+                            },
+                            icon: const Icon(Icons.close_rounded),
+                          ),
+                      ],
+                      onChanged: (value) => setState(() => _query = value),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
-      ),
-      body: Column(children: [
-        _FilterBar(
-          gradeFilter: _gradeFilter,
-          requiredFilter: _requiredFilter,
-          teamFilter: _teamFilter,
-          sort: _sort,
-          onGrade: (v) => setState(() => _gradeFilter = v),
-          onRequired: (v) => setState(() => _requiredFilter = v),
-          onTeam: (v) => setState(() => _teamFilter = v),
-          onSort: (v) => setState(() => _sort = v),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-          child: Row(children: [
-            Text('${courses.length}개 과목',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.outline)),
-          ]),
-        ),
-        Expanded(
-          child: courses.isEmpty
-              ? const Center(child: Text('검색 결과가 없습니다.'))
-              : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-                  itemCount: courses.length,
-                  itemBuilder: (_, i) => _CourseCard(course: courses[i]),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+              child: _FilterPanel(
+                gradeFilter: _gradeFilter,
+                requiredFilter: _requiredFilter,
+                teamFilter: _teamFilter,
+                sort: _sort,
+                onGrade: (value) => setState(() => _gradeFilter = value),
+                onRequired: (value) => setState(() => _requiredFilter = value),
+                onTeam: (value) => setState(() => _teamFilter = value),
+                onSort: (value) => setState(() => _sort = value),
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+              child: Text(
+                '검색 결과 ${courses.length}개',
+                style: theme.textTheme.titleSmall,
+              ),
+            ),
+          ),
+          if (courses.isEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(color: theme.colorScheme.outlineVariant),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.inbox_rounded,
+                        size: 42,
+                        color: theme.colorScheme.outline,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        '조건에 맞는 강의가 없습니다.',
+                        style: theme.textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '필터를 일부 해제하거나 검색어를 넓혀 보세요.',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
                 ),
-        ),
-      ]),
+              ),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+              sliver: SliverList.separated(
+                itemCount: courses.length,
+                itemBuilder: (context, index) =>
+                    _CourseCard(course: courses[index]),
+                separatorBuilder: (context, index) =>
+                    const SizedBox(height: 12),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
 
-// ── 필터 바 ───────────────────────────────────────────────────
-class _FilterBar extends StatelessWidget {
+class _FilterPanel extends StatelessWidget {
   final int? gradeFilter;
   final bool? requiredFilter;
   final bool? teamFilter;
@@ -123,7 +201,7 @@ class _FilterBar extends StatelessWidget {
   final ValueChanged<bool?> onTeam;
   final ValueChanged<SortMode> onSort;
 
-  const _FilterBar({
+  const _FilterPanel({
     required this.gradeFilter,
     required this.requiredFilter,
     required this.teamFilter,
@@ -136,177 +214,200 @@ class _FilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: Row(children: [
-        // 학년 필터
-        _FilterChipGroup<int?>(
-          label: '학년',
-          options: const [null, 1, 2, 3, 4],
-          labels: const ['전체', '1학년', '2학년', '3학년', '4학년'],
-          selected: gradeFilter,
-          onSelected: onGrade,
-        ),
-        const SizedBox(width: 8),
-        _FilterChipGroup<bool?>(
-          label: '이수구분',
-          options: const [null, true, false],
-          labels: const ['전체', '전필', '전선'],
-          selected: requiredFilter,
-          onSelected: onRequired,
-        ),
-        const SizedBox(width: 8),
-        _FilterChipGroup<bool?>(
-          label: '팀플',
-          options: const [null, true, false],
-          labels: const ['전체', '있음', '없음'],
-          selected: teamFilter,
-          onSelected: onTeam,
-        ),
-        const SizedBox(width: 12),
-        const VerticalDivider(width: 1, indent: 4, endIndent: 4),
-        const SizedBox(width: 12),
-        // 정렬
-        DropdownButton<SortMode>(
-          value: sort,
-          isDense: true,
-          underline: const SizedBox(),
-          borderRadius: BorderRadius.circular(12),
-          items: const [
-            DropdownMenuItem(value: SortMode.name, child: Text('이름순')),
-            DropdownMenuItem(value: SortMode.rating, child: Text('평점 높은순')),
-            DropdownMenuItem(value: SortMode.difficulty, child: Text('난이도 낮은순')),
-            DropdownMenuItem(value: SortMode.credit, child: Text('학점 높은순')),
-          ],
-          onChanged: (v) { if (v != null) onSort(v); },
-        ),
-      ]),
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _FilterGroup<int?>(
+            title: '학년',
+            selected: gradeFilter,
+            options: const [null, 1, 2, 3, 4],
+            labelBuilder: (value) => value == null ? '전체' : '$value학년',
+            onSelected: onGrade,
+          ),
+          const SizedBox(height: 14),
+          _FilterGroup<bool?>(
+            title: '이수 구분',
+            selected: requiredFilter,
+            options: const [null, true, false],
+            labelBuilder: (value) {
+              if (value == null) {
+                return '전체';
+              }
+              return value ? '전공필수' : '선택';
+            },
+            onSelected: onRequired,
+          ),
+          const SizedBox(height: 14),
+          _FilterGroup<bool?>(
+            title: '팀프로젝트',
+            selected: teamFilter,
+            options: const [null, true, false],
+            labelBuilder: (value) {
+              if (value == null) {
+                return '전체';
+              }
+              return value ? '포함' : '없음';
+            },
+            onSelected: onTeam,
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Text('정렬', style: theme.textTheme.titleSmall),
+              const Spacer(),
+              DropdownButton<SortMode>(
+                value: sort,
+                underline: const SizedBox.shrink(),
+                borderRadius: BorderRadius.circular(18),
+                items: const [
+                  DropdownMenuItem(
+                    value: SortMode.rating,
+                    child: Text('평점 높은 순'),
+                  ),
+                  DropdownMenuItem(
+                    value: SortMode.difficulty,
+                    child: Text('난이도 낮은 순'),
+                  ),
+                  DropdownMenuItem(
+                    value: SortMode.credit,
+                    child: Text('학점 높은 순'),
+                  ),
+                  DropdownMenuItem(value: SortMode.name, child: Text('이름순')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    onSort(value);
+                  }
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
 
-class _FilterChipGroup<T> extends StatelessWidget {
-  final String label;
-  final List<T> options;
-  final List<String> labels;
+class _FilterGroup<T> extends StatelessWidget {
+  final String title;
   final T selected;
+  final List<T> options;
+  final String Function(T value) labelBuilder;
   final ValueChanged<T> onSelected;
 
-  const _FilterChipGroup({
-    required this.label,
-    required this.options,
-    required this.labels,
+  const _FilterGroup({
+    required this.title,
     required this.selected,
+    required this.options,
+    required this.labelBuilder,
     required this.onSelected,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(options.length, (i) {
-        final isSelected = selected == options[i];
-        return Padding(
-          padding: const EdgeInsets.only(right: 4),
-          child: FilterChip(
-            label: Text(labels[i]),
-            selected: isSelected,
-            onSelected: (_) => onSelected(options[i]),
-            visualDensity: VisualDensity.compact,
-            labelStyle: const TextStyle(fontSize: 12),
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-          ),
-        );
-      }),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: options.map((option) {
+            return ChoiceChip(
+              selected: selected == option,
+              label: Text(labelBuilder(option)),
+              onSelected: (_) => onSelected(option),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 }
 
-// ── 과목 카드 ─────────────────────────────────────────────────
 class _CourseCard extends StatelessWidget {
   final Course course;
-  const _CourseCard({required this.course});
 
-  static const _gradeColors = [
-    Colors.blue, Colors.green, Colors.orange, Colors.purple
-  ];
+  const _CourseCard({required this.course});
 
   @override
   Widget build(BuildContext context) {
-    final gradeColor = course.grade > 0
-        ? _gradeColors[(course.grade - 1) % _gradeColors.length]
-        : Colors.grey;
+    final theme = Theme.of(context);
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => _showDetail(context),
+    return InkWell(
+      borderRadius: BorderRadius.circular(28),
+      onTap: () => _showDetail(context),
+      child: Ink(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
         child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              // 학년 뱃지
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                decoration: BoxDecoration(
-                  color: gradeColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  course.grade > 0 ? '${course.grade}학년' : '공통',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: gradeColor,
-                  ),
-                ),
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _Tag(text: '${course.grade}학년', color: AppTheme.blue),
+                  const SizedBox(width: 8),
+                  if (course.isMajorRequired)
+                    _Tag(text: '전공필수', color: AppTheme.coral),
+                  if (course.hasTeamProject) ...[
+                    const SizedBox(width: 8),
+                    _Tag(text: '팀프로젝트', color: AppTheme.cyan),
+                  ],
+                  const Spacer(),
+                  Text('${course.credit}학점', style: theme.textTheme.labelLarge),
+                ],
               ),
-              const SizedBox(width: 6),
-              if (course.isMajorRequired)
-                _SmallBadge('전필', Theme.of(context).colorScheme.error),
-              if (course.hasTeamProject) ...[
-                const SizedBox(width: 4),
-                _SmallBadge('팀플', Colors.orange.shade700),
-              ],
-              const Spacer(),
-              Text('${course.credit}학점',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.bold)),
-            ]),
-            const SizedBox(height: 8),
-            Text(course.name,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold)),
-            const SizedBox(height: 2),
-            Text('${course.professor} · ${course.timeSummary}',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.outline)),
-            const SizedBox(height: 8),
-            Row(children: [
-              // 별점
-              ...List.generate(5, (i) => Icon(
-                i < course.rating.round() ? Icons.star_rounded : Icons.star_outline_rounded,
-                size: 14,
-                color: Colors.amber,
-              )),
-              const SizedBox(width: 4),
-              Text(course.rating.toStringAsFixed(1),
-                  style: Theme.of(context).textTheme.labelSmall),
-              const SizedBox(width: 16),
-              // 난이도
-              Text('난이도', style: Theme.of(context).textTheme.labelSmall),
-              const SizedBox(width: 4),
-              ...List.generate(5, (i) => Icon(
-                Icons.circle,
-                size: 8,
-                color: i < course.difficulty
-                    ? Colors.deepOrange
-                    : Colors.grey.shade300,
-              )),
-            ]),
-          ]),
+              const SizedBox(height: 14),
+              Text(course.name, style: theme.textTheme.titleMedium),
+              const SizedBox(height: 6),
+              Text(
+                '${course.professor} · ${course.section}분반 · ${course.timeSummary}',
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.star_rounded,
+                    size: 16,
+                    color: AppTheme.coral,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    course.rating.toStringAsFixed(1),
+                    style: theme.textTheme.labelLarge,
+                  ),
+                  const SizedBox(width: 18),
+                  Text('난이도', style: theme.textTheme.labelMedium),
+                  const SizedBox(width: 8),
+                  ...List.generate(
+                    5,
+                    (index) => Icon(
+                      Icons.circle,
+                      size: 8,
+                      color: index < course.difficulty
+                          ? AppTheme.coral
+                          : theme.colorScheme.outlineVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -317,161 +418,214 @@ class _CourseCard extends StatelessWidget {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
       builder: (_) => _CourseDetailSheet(course: course),
     );
   }
 }
 
-class _SmallBadge extends StatelessWidget {
+class _Tag extends StatelessWidget {
   final String text;
   final Color color;
-  const _SmallBadge(this.text, this.color);
+
+  const _Tag({required this.text, required this.color});
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: color.withValues(alpha: 0.4)),
-        ),
-        child: Text(text,
-            style: TextStyle(
-                fontSize: 10, color: color, fontWeight: FontWeight.bold)),
-      );
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(color: color),
+      ),
+    );
+  }
 }
 
-// ── 과목 상세 바텀시트 ─────────────────────────────────────────
 class _CourseDetailSheet extends StatelessWidget {
   final Course course;
+
   const _CourseDetailSheet({required this.course});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return DraggableScrollableSheet(
-      initialChildSize: 0.6,
-      minChildSize: 0.4,
-      maxChildSize: 0.9,
+      initialChildSize: 0.64,
+      minChildSize: 0.45,
+      maxChildSize: 0.92,
       expand: false,
-      builder: (_, ctrl) => ListView(
-        controller: ctrl,
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
-        children: [
-          // 드래그 핸들
-          Center(
-            child: Container(
-              width: 40, height: 4,
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.outlineVariant,
-                borderRadius: BorderRadius.circular(2),
+      builder: (context, controller) {
+        return ListView(
+          controller: controller,
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 32),
+          children: [
+            Center(
+              child: Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(999),
+                ),
               ),
             ),
-          ),
-          // 과목명
-          Text(course.name,
-              style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
-          Text(course.professor,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                  color: theme.colorScheme.outline)),
-          const SizedBox(height: 16),
-          // 핵심 수치
-          Row(children: [
-            _InfoTile('학점', '${course.credit}학점', Icons.credit_card, theme),
-            const SizedBox(width: 8),
-            _InfoTile('학년', '${course.grade}학년', Icons.school, theme),
-            const SizedBox(width: 8),
-            _InfoTile('이수구분', course.isMajorRequired ? '전필' : '전선',
-                Icons.check_circle_outline, theme),
-          ]),
-          const SizedBox(height: 12),
-          // 평점 & 난이도
-          Card(
-            color: theme.colorScheme.surfaceContainerLow,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
+            const SizedBox(height: 18),
+            Text(course.name, style: theme.textTheme.headlineSmall),
+            const SizedBox(height: 6),
+            Text(
+              '${course.professor} · ${course.section}분반',
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: _InfoTile(
+                    label: '학점',
+                    value: '${course.credit}학점',
+                    icon: Icons.credit_score_rounded,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _InfoTile(
+                    label: '학년',
+                    value: '${course.grade}학년',
+                    icon: Icons.school_rounded,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _InfoTile(
+                    label: '구분',
+                    value: course.isMajorRequired ? '전공필수' : '선택',
+                    icon: Icons.category_rounded,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(24),
+              ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  Column(children: [
-                    Text('강의 평점', style: theme.textTheme.labelSmall),
-                    const SizedBox(height: 6),
-                    Row(children: [
-                      const Icon(Icons.star_rounded, color: Colors.amber, size: 20),
-                      const SizedBox(width: 4),
-                      Text(course.rating.toStringAsFixed(1),
-                          style: theme.textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold)),
-                      Text(' / 5.0', style: theme.textTheme.bodySmall),
-                    ]),
-                  ]),
-                  Container(width: 1, height: 40, color: theme.colorScheme.outlineVariant),
-                  Column(children: [
-                    Text('강의 난이도', style: theme.textTheme.labelSmall),
-                    const SizedBox(height: 6),
-                    Row(children: [
-                      ...List.generate(5, (i) => Icon(
-                        Icons.circle,
-                        size: 14,
-                        color: i < course.difficulty
-                            ? Colors.deepOrange
-                            : Colors.grey.shade300,
-                      )),
-                      const SizedBox(width: 6),
-                      Text('${course.difficulty}/5',
-                          style: theme.textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold)),
-                    ]),
-                  ]),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Text('강의 평점', style: theme.textTheme.labelMedium),
+                        const SizedBox(height: 8),
+                        Text(
+                          course.rating.toStringAsFixed(1),
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            color: AppTheme.coral,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    width: 1,
+                    height: 54,
+                    color: theme.colorScheme.outlineVariant,
+                  ),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Text('난이도', style: theme.textTheme.labelMedium),
+                        const SizedBox(height: 10),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: List.generate(
+                            5,
+                            (index) => Icon(
+                              Icons.circle,
+                              size: 10,
+                              color: index < course.difficulty
+                                  ? AppTheme.coral
+                                  : theme.colorScheme.outlineVariant,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 12),
-          // 강의 시간
-          Text('강의 시간', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          ...course.timeSlots.map((s) => ListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            leading: CircleAvatar(
-              radius: 16,
-              backgroundColor: theme.colorScheme.primaryContainer,
-              child: Text(s.day,
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.onPrimaryContainer)),
-            ),
-            title: Text('${s.startHour}:00 ~ ${s.endHour}:00',
-                style: theme.textTheme.bodyMedium),
-            subtitle: Text('${s.endHour - s.startHour}시간',
-                style: theme.textTheme.bodySmall),
-          )),
-          const SizedBox(height: 12),
-          // 팀플 여부
-          if (course.hasTeamProject)
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.orange.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+            const SizedBox(height: 18),
+            Text('수업 시간', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 10),
+            ...course.timeSlots.map(
+              (slot) => Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        slot.day,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          color: theme.colorScheme.onPrimaryContainer,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        '${slot.startHour}:00 ~ ${slot.endHour}:00 (${slot.durationHours}시간)',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              child: Row(children: [
-                const Icon(Icons.group, color: Colors.orange, size: 20),
-                const SizedBox(width: 8),
-                Text('팀 프로젝트가 포함된 강의입니다.',
-                    style: theme.textTheme.bodyMedium?.copyWith(color: Colors.orange.shade800)),
-              ]),
             ),
-        ],
-      ),
+            if (course.hasTeamProject) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppTheme.cyan.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.groups_rounded, color: AppTheme.cyan),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '이 강의는 팀프로젝트가 포함되어 있습니다.',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.cyan,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }
@@ -480,24 +634,31 @@ class _InfoTile extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
-  final ThemeData theme;
-  const _InfoTile(this.label, this.value, this.icon, this.theme);
+
+  const _InfoTile({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
 
   @override
-  Widget build(BuildContext context) => Expanded(
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerLow,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(children: [
-            Icon(icon, size: 18, color: theme.colorScheme.primary),
-            const SizedBox(height: 4),
-            Text(value,
-                style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold)),
-            Text(label, style: theme.textTheme.labelSmall),
-          ]),
-        ),
-      );
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: theme.colorScheme.primary),
+          const SizedBox(height: 8),
+          Text(value, style: theme.textTheme.titleSmall),
+          const SizedBox(height: 4),
+          Text(label, style: theme.textTheme.labelMedium),
+        ],
+      ),
+    );
+  }
 }

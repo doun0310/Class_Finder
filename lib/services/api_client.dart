@@ -8,7 +8,7 @@ class ApiClient {
   String? _token;
 
   ApiClient({required this.baseUrl, http.Client? client})
-      : _client = client ?? http.Client();
+    : _client = client ?? http.Client();
 
   void setToken(String? token) => _token = token;
 

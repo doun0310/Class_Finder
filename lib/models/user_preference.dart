@@ -9,10 +9,10 @@ class UserPreference {
   final bool avoidTeamProject;
   final List<String> requiredCourseIds;
   // 시간 제약 (Where-Got-TimeTable 참조)
-  final int minStartHour;         // 수업 최소 시작 시간 (9~11)
-  final int maxEndHour;           // 수업 최대 종료 시간 (18~21)
+  final int minStartHour; // 수업 최소 시작 시간 (9~11)
+  final int maxEndHour; // 수업 최대 종료 시간 (18~21)
   final List<String> preferredFreeDays; // 공강 희망 요일 (하드 제약)
-  final bool requireLunchBreak;   // 점심시간(12~13) 확보
+  final bool requireLunchBreak; // 점심시간(12~13) 확보
 
   const UserPreference({
     required this.major,
@@ -44,20 +44,19 @@ class UserPreference {
     int? maxEndHour,
     List<String>? preferredFreeDays,
     bool? requireLunchBreak,
-  }) =>
-      UserPreference(
-        major: major ?? this.major,
-        grade: grade ?? this.grade,
-        maxCredits: maxCredits ?? this.maxCredits,
-        preferMorning: preferMorning ?? this.preferMorning,
-        freeTimeWeight: freeTimeWeight ?? this.freeTimeWeight,
-        ratingWeight: ratingWeight ?? this.ratingWeight,
-        difficultyWeight: difficultyWeight ?? this.difficultyWeight,
-        avoidTeamProject: avoidTeamProject ?? this.avoidTeamProject,
-        requiredCourseIds: requiredCourseIds ?? this.requiredCourseIds,
-        minStartHour: minStartHour ?? this.minStartHour,
-        maxEndHour: maxEndHour ?? this.maxEndHour,
-        preferredFreeDays: preferredFreeDays ?? this.preferredFreeDays,
-        requireLunchBreak: requireLunchBreak ?? this.requireLunchBreak,
-      );
+  }) => UserPreference(
+    major: major ?? this.major,
+    grade: grade ?? this.grade,
+    maxCredits: maxCredits ?? this.maxCredits,
+    preferMorning: preferMorning ?? this.preferMorning,
+    freeTimeWeight: freeTimeWeight ?? this.freeTimeWeight,
+    ratingWeight: ratingWeight ?? this.ratingWeight,
+    difficultyWeight: difficultyWeight ?? this.difficultyWeight,
+    avoidTeamProject: avoidTeamProject ?? this.avoidTeamProject,
+    requiredCourseIds: requiredCourseIds ?? this.requiredCourseIds,
+    minStartHour: minStartHour ?? this.minStartHour,
+    maxEndHour: maxEndHour ?? this.maxEndHour,
+    preferredFreeDays: preferredFreeDays ?? this.preferredFreeDays,
+    requireLunchBreak: requireLunchBreak ?? this.requireLunchBreak,
+  );
 }

@@ -19,36 +19,35 @@ class SavedTimetable {
     required this.savedAt,
   });
 
-  int get totalCredits => courses.fold(0, (s, c) => s + c.credit);
+  int get totalCredits => courses.fold(0, (sum, course) => sum + course.credit);
 
-  int get freeDays {
-    const days = ['월', '화', '수', '목', '금'];
-    return days
-        .where((d) => courses.every((c) => c.timeSlots.every((s) => s.day != d)))
-        .length;
-  }
+  int get freeDays => weekdays
+      .where((day) => courses.every((course) => !course.occursOn(day)))
+      .length;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'userId': userId,
-        'name': name,
-        'courses': courses.map((c) => c.toJson()).toList(),
-        'score': score,
-        'scoreBreakdown': scoreBreakdown,
-        'savedAt': savedAt.toIso8601String(),
-      };
+    'id': id,
+    'userId': userId,
+    'name': name,
+    'courses': courses.map((course) => course.toJson()).toList(),
+    'score': score,
+    'scoreBreakdown': scoreBreakdown,
+    'savedAt': savedAt.toIso8601String(),
+  };
 
-  factory SavedTimetable.fromJson(Map<String, dynamic> j) => SavedTimetable(
-        id: j['id'] as String,
-        userId: j['userId'] as String,
-        name: j['name'] as String,
-        courses: (j['courses'] as List)
-            .map((c) => Course.fromJson(c as Map<String, dynamic>))
-            .toList(),
-        score: (j['score'] as num).toDouble(),
-        scoreBreakdown: Map<String, double>.from(
-            (j['scoreBreakdown'] as Map).map(
-                (k, v) => MapEntry(k as String, (v as num).toDouble()))),
-        savedAt: DateTime.parse(j['savedAt'] as String),
-      );
+  factory SavedTimetable.fromJson(Map<String, dynamic> json) => SavedTimetable(
+    id: json['id'] as String,
+    userId: json['userId'] as String,
+    name: json['name'] as String,
+    courses: (json['courses'] as List)
+        .map((course) => Course.fromJson(course as Map<String, dynamic>))
+        .toList(),
+    score: (json['score'] as num).toDouble(),
+    scoreBreakdown: Map<String, double>.from(
+      (json['scoreBreakdown'] as Map).map(
+        (key, value) => MapEntry(key as String, (value as num).toDouble()),
+      ),
+    ),
+    savedAt: DateTime.parse(json['savedAt'] as String),
+  );
 }

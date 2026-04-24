@@ -1,4 +1,5 @@
 import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 class MatchingLoadingOverlay extends StatefulWidget {
@@ -10,69 +11,83 @@ class MatchingLoadingOverlay extends StatefulWidget {
 
 class _MatchingLoadingOverlayState extends State<MatchingLoadingOverlay>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  int _step = 0;
-
   static const _steps = [
-    '과목 데이터 로드 중...',
-    '유전 알고리즘 초기화 중...',
-    '최적 조합 탐색 중...',
-    '적합도 평가 중...',
-    '상위 5개 시간표 선별 중...',
+    '강의 데이터를 정리하고 있어요.',
+    '초기 시간표 후보를 생성하고 있어요.',
+    '제약 조건을 만족하는 조합을 탐색하고 있어요.',
+    '공강과 평점 기준으로 점수를 다시 보정하고 있어요.',
+    '상위 추천 시간표를 정리하고 있어요.',
   ];
+
+  late final AnimationController _controller;
+  int _step = 0;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(seconds: 2))
-      ..repeat();
-    _startStepper();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat();
+    _advance();
   }
 
-  void _startStepper() async {
+  Future<void> _advance() async {
     for (int i = 0; i < _steps.length; i++) {
-      await Future.delayed(const Duration(milliseconds: 320));
-      if (mounted) setState(() => _step = i);
+      await Future.delayed(const Duration(milliseconds: 340));
+      if (!mounted) {
+        return;
+      }
+      setState(() => _step = i);
     }
   }
 
   @override
   void dispose() {
-    _ctrl.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      color: Colors.black.withValues(alpha: 0.55),
+    final theme = Theme.of(context);
+
+    return ColoredBox(
+      color: Colors.black.withValues(alpha: 0.56),
       child: Center(
-        child: Card(
-          margin: const EdgeInsets.symmetric(horizontal: 40),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              _GeneticAnimIcon(controller: _ctrl),
-              const SizedBox(height: 24),
-              Text('시간표 매칭 중',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold)),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 28),
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(32),
+            border: Border.all(color: theme.colorScheme.outlineVariant),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _AnimatedHelix(controller: _controller),
+              const SizedBox(height: 22),
+              Text('시간표를 조합하는 중입니다.', style: theme.textTheme.titleLarge),
               const SizedBox(height: 8),
               AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                child: Text(_steps[_step],
-                    key: ValueKey(_step),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: scheme.outline)),
+                duration: const Duration(milliseconds: 240),
+                child: Text(
+                  _steps[_step],
+                  key: ValueKey(_step),
+                  style: theme.textTheme.bodyMedium,
+                  textAlign: TextAlign.center,
+                ),
               ),
-              const SizedBox(height: 20),
-              LinearProgressIndicator(
-                borderRadius: BorderRadius.circular(4),
-                value: (_step + 1) / _steps.length,
+              const SizedBox(height: 18),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  value: (_step + 1) / _steps.length,
+                  minHeight: 8,
+                ),
               ),
-            ]),
+            ],
           ),
         ),
       ),
@@ -80,10 +95,10 @@ class _MatchingLoadingOverlayState extends State<MatchingLoadingOverlay>
   }
 }
 
-/// DNA 이중나선 형태의 애니메이션 아이콘
-class _GeneticAnimIcon extends StatelessWidget {
+class _AnimatedHelix extends StatelessWidget {
   final AnimationController controller;
-  const _GeneticAnimIcon({required this.controller});
+
+  const _AnimatedHelix({required this.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -91,49 +106,55 @@ class _GeneticAnimIcon extends StatelessWidget {
       animation: controller,
       builder: (context, child) {
         return CustomPaint(
-          size: const Size(64, 64),
-          painter: _DNAPainter(controller.value, Theme.of(context).colorScheme.primary),
+          size: const Size(80, 80),
+          painter: _HelixPainter(
+            progress: controller.value,
+            color: Theme.of(context).colorScheme.primary,
+          ),
         );
       },
     );
   }
 }
 
-class _DNAPainter extends CustomPainter {
-  final double t;
+class _HelixPainter extends CustomPainter {
+  final double progress;
   final Color color;
-  _DNAPainter(this.t, this.color);
+
+  _HelixPainter({required this.progress, required this.color});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
+    final stroke = Paint()
       ..strokeWidth = 3
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
+    final fill = Paint()..style = PaintingStyle.fill;
 
-    const steps = 20;
-    final cx = size.width / 2;
-    final cy = size.height / 2;
+    const steps = 22;
+    final centerX = size.width / 2;
+    final centerY = size.height / 2;
 
     for (int i = 0; i < steps; i++) {
-      final frac = i / steps;
-      final angle = (frac + t) * pi * 4;
-      final y = (frac - 0.5) * size.height;
-      final x1 = cx + cos(angle) * 20;
-      final x2 = cx + cos(angle + pi) * 20;
+      final fraction = i / (steps - 1);
+      final angle = (fraction + progress) * pi * 4;
+      final y = centerY + (fraction - 0.5) * size.height * 0.8;
+      final x1 = centerX + cos(angle) * 20;
+      final x2 = centerX + cos(angle + pi) * 20;
 
-      paint.color = color.withValues(alpha: 0.3 + 0.7 * ((sin(angle) + 1) / 2));
-      canvas.drawLine(Offset(x1, cy + y), Offset(x2, cy + y), paint);
+      stroke.color = color.withValues(alpha: 0.28 + 0.58 * fraction);
+      canvas.drawLine(Offset(x1, y), Offset(x2, y), stroke);
 
-      if (i % 4 == 0) {
-        paint.color = color.withValues(alpha: 0.7);
-        canvas.drawCircle(Offset(x1, cy + y), 3, paint..style = PaintingStyle.fill);
-        canvas.drawCircle(Offset(x2, cy + y), 3, paint);
-        paint.style = PaintingStyle.stroke;
+      if (i.isEven) {
+        fill.color = color.withValues(alpha: 0.8);
+        canvas.drawCircle(Offset(x1, y), 3, fill);
+        canvas.drawCircle(Offset(x2, y), 3, fill);
       }
     }
   }
 
   @override
-  bool shouldRepaint(_DNAPainter old) => old.t != t;
+  bool shouldRepaint(covariant _HelixPainter oldDelegate) {
+    return oldDelegate.progress != progress || oldDelegate.color != color;
+  }
 }

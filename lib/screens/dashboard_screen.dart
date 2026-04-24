@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../models/saved_timetable.dart';
 import '../services/auth_service.dart';
 import '../services/timetable_repository.dart';
+import '../theme/app_theme.dart';
 
 class DashboardScreen extends StatefulWidget {
-  /// 홈 탭 전환용 콜백 (탭 인덱스 전달)
   final ValueChanged<int>? onNavigate;
+
   const DashboardScreen({super.key, this.onNavigate});
 
   @override
@@ -14,7 +16,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final _repo = TimetableRepository();
+  final _repository = TimetableRepository();
   List<SavedTimetable> _saved = [];
   bool _loading = true;
 
@@ -28,321 +30,334 @@ class _DashboardScreenState extends State<DashboardScreen> {
     setState(() => _loading = true);
     final user = context.read<AuthService>().user;
     if (user != null) {
-      _saved = await _repo.listByUser(user.id);
+      _saved = await _repository.listByUser(user.id);
+    } else {
+      _saved = [];
     }
-    if (mounted) setState(() => _loading = false);
+
+    if (mounted) {
+      setState(() => _loading = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final user = context.watch<AuthService>().user;
+    final greeting = _greeting(DateTime.now().hour);
+
     return Scaffold(
       body: RefreshIndicator(
         onRefresh: _load,
         child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
-            SliverAppBar.large(
-              automaticallyImplyLeading: false,
-              title: const Text('홈'),
-              backgroundColor: theme.colorScheme.surface,
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.notifications_none_rounded),
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text('새로운 알림이 없습니다'),
-                    ));
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
+                child: _HeroPanel(
+                  greeting: greeting,
+                  name: user?.name ?? '게스트',
+                  department: user?.department ?? '빠른 시간표 탐색',
+                  savedCount: _saved.length,
+                  onNotifications: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('새 알림이 없습니다.')),
+                    );
                   },
                 ),
-                const SizedBox(width: 4),
-              ],
+              ),
             ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  // ── 인사 헤더 ─────────────────────────────
-                  _GreetingHeader(name: user?.name ?? '사용자'),
-                  const SizedBox(height: 20),
-
-                  // ── 프로필 요약 카드 ──────────────────────
-                  if (user != null) _ProfileSummaryCard(
-                    name: user.name,
-                    department: user.department,
-                    grade: user.grade,
-                    studentId: user.studentId,
-                  ),
-                  const SizedBox(height: 16),
-
-                  // ── 빠른 액션 ─────────────────────────────
-                  Text('빠른 시작',
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 10),
-                  Row(children: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
+                child: Row(
+                  children: [
                     Expanded(
                       child: _ActionCard(
+                        color: AppTheme.blue,
                         icon: Icons.auto_awesome_rounded,
-                        label: '시간표 매칭',
-                        color: const Color(0xFF3B6BFF),
+                        title: '시간표 추천',
+                        subtitle: '선호 조건을 기반으로 상위 조합을 생성합니다.',
                         onTap: () => widget.onNavigate?.call(1),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: _ActionCard(
+                        color: AppTheme.cyan,
                         icon: Icons.search_rounded,
-                        label: '과목 탐색',
-                        color: const Color(0xFF14B8A6),
+                        title: '강의 탐색',
+                        subtitle: '학년, 평점, 팀프로젝트 기준으로 비교합니다.',
                         onTap: () => widget.onNavigate?.call(2),
                       ),
                     ),
-                  ]),
-                  const SizedBox(height: 20),
-
-                  // ── 저장된 시간표 섹션 ──────────────────────
-                  Row(children: [
-                    Text('저장된 시간표',
-                        style: theme.textTheme.titleSmall
-                            ?.copyWith(fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 28, 16, 12),
+                child: Row(
+                  children: [
+                    Text('최근 저장한 시간표', style: theme.textTheme.titleLarge),
                     const Spacer(),
                     if (_saved.isNotEmpty)
                       TextButton(
-                        onPressed: () =>
-                            Navigator.pushNamed(context, '/saved')
-                                .then((_) => _load()),
-                        child: const Text('전체보기'),
+                        onPressed: () => Navigator.pushNamed(
+                          context,
+                          '/saved',
+                        ).then((_) => _load()),
+                        child: const Text('전체 보기'),
                       ),
-                  ]),
-                  const SizedBox(height: 8),
-                  if (_loading)
-                    const Padding(
-                      padding: EdgeInsets.all(32),
-                      child: Center(child: CircularProgressIndicator()),
-                    )
-                  else if (_saved.isEmpty)
-                    _EmptyState(
-                      onCreate: () => widget.onNavigate?.call(1),
-                    )
-                  else
-                    ..._saved.take(3).map((t) => _SavedTimetablePreview(
-                          saved: t,
-                          onTap: () => Navigator.pushNamed(
-                              context, '/saved').then((_) => _load()),
-                        )),
-                ]),
+                  ],
+                ),
               ),
             ),
+            if (_loading)
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.all(40),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              )
+            else if (_saved.isEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                  child: _EmptyState(
+                    onCreate: () => widget.onNavigate?.call(1),
+                  ),
+                ),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
+                sliver: SliverList.separated(
+                  itemCount: _saved.take(3).length,
+                  itemBuilder: (context, index) {
+                    final saved = _saved[index];
+                    return _SavedTimetableCard(
+                      saved: saved,
+                      onTap: () => Navigator.pushNamed(
+                        context,
+                        '/saved',
+                      ).then((_) => _load()),
+                    );
+                  },
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 12),
+                ),
+              ),
           ],
         ),
       ),
     );
   }
-}
 
-// ── 인사 헤더 ─────────────────────────────────────────────────────
-class _GreetingHeader extends StatelessWidget {
-  final String name;
-  const _GreetingHeader({required this.name});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final hour = DateTime.now().hour;
-    final greeting = hour < 12
-        ? '좋은 아침이에요'
-        : hour < 18
-            ? '좋은 오후예요'
-            : '좋은 저녁이에요';
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(greeting,
-          style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant)),
-      const SizedBox(height: 4),
-      Text('$name 님 👋',
-          style: theme.textTheme.headlineSmall
-              ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.3)),
-    ]);
+  String _greeting(int hour) {
+    if (hour < 12) {
+      return '좋은 아침이에요';
+    }
+    if (hour < 18) {
+      return '좋은 오후예요';
+    }
+    return '좋은 저녁이에요';
   }
 }
 
-// ── 프로필 요약 카드 ──────────────────────────────────────────────
-class _ProfileSummaryCard extends StatelessWidget {
+class _HeroPanel extends StatelessWidget {
+  final String greeting;
   final String name;
   final String department;
-  final int grade;
-  final String studentId;
-  const _ProfileSummaryCard({
+  final int savedCount;
+  final VoidCallback onNotifications;
+
+  const _HeroPanel({
+    required this.greeting,
     required this.name,
     required this.department,
-    required this.grade,
-    required this.studentId,
+    required this.savedCount,
+    required this.onNotifications,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            theme.colorScheme.primary,
-            theme.colorScheme.primary.withValues(alpha: 0.75),
-          ],
+          colors: [Color(0xFF153EA8), Color(0xFF0F6CBD), Color(0xFF1D8FB8)],
         ),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(32),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.blue.withValues(alpha: 0.16),
+            blurRadius: 28,
+            offset: const Offset(0, 16),
+          ),
+        ],
       ),
-      child: Row(children: [
-        CircleAvatar(
-          radius: 28,
-          backgroundColor: Colors.white.withValues(alpha: 0.2),
-          child: Text(
-            name.isEmpty ? '?' : name.substring(0, 1),
-            style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: Colors.white),
-          ),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(name,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            Text('$department · $grade학년',
-                style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.85), fontSize: 13)),
-            const SizedBox(height: 2),
-            Text(studentId,
-                style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.7), fontSize: 12)),
-          ]),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: const Text('학생',
-              style: TextStyle(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
                   color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold)),
-        ),
-      ]),
+                  size: 28,
+                ),
+              ),
+              const Spacer(),
+              IconButton.filledTonal(
+                onPressed: onNotifications,
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.white.withValues(alpha: 0.12),
+                  foregroundColor: Colors.white,
+                ),
+                icon: const Icon(Icons.notifications_none_rounded),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Text(
+            greeting,
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: Colors.white.withValues(alpha: 0.82),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '$name 님을 위한 시간표 브리핑',
+            style: theme.textTheme.headlineSmall?.copyWith(
+              color: Colors.white,
+              letterSpacing: -0.6,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            department,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: Colors.white.withValues(alpha: 0.78),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: _MetricTile(label: '저장된 시간표', value: '$savedCount개'),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: _MetricTile(label: '추천 엔진', value: 'GA + 보정'),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: _MetricTile(label: '주요 기준', value: '공강 + 평점'),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
 
-// ── 액션 카드 ─────────────────────────────────────────────────────
-class _ActionCard extends StatelessWidget {
-  final IconData icon;
+class _MetricTile extends StatelessWidget {
   final String label;
+  final String value;
+
+  const _MetricTile({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: Colors.white.withValues(alpha: 0.75),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: theme.textTheme.titleMedium?.copyWith(color: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionCard extends StatelessWidget {
   final Color color;
+  final IconData icon;
+  final String title;
+  final String subtitle;
   final VoidCallback onTap;
+
   const _ActionCard({
-    required this.icon,
-    required this.label,
     required this.color,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Material(
-      color: theme.colorScheme.surface,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: theme.colorScheme.outlineVariant),
-          ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: color, size: 24),
-            ),
-            const SizedBox(height: 12),
-            Text(label,
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 2),
-            Text('바로가기',
-                style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant)),
-          ]),
+    return InkWell(
+      borderRadius: BorderRadius.circular(28),
+      onTap: onTap,
+      child: Ink(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
         ),
-      ),
-    );
-  }
-}
-
-// ── 저장된 시간표 미리보기 ────────────────────────────────────────
-class _SavedTimetablePreview extends StatelessWidget {
-  final SavedTimetable saved;
-  final VoidCallback onTap;
-  const _SavedTimetablePreview({required this.saved, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Card(
-        margin: EdgeInsets.zero,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(children: [
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Container(
                 width: 46,
                 height: 46,
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(12),
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                child: Icon(Icons.calendar_today_rounded,
-                    color: theme.colorScheme.onPrimaryContainer, size: 22),
+                child: Icon(icon, color: color),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(saved.name,
-                        style: theme.textTheme.bodyLarge
-                            ?.copyWith(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 2),
-                    Text(
-                        '${saved.totalCredits}학점 · 공강 ${saved.freeDays}일 · ${(saved.score * 100).toStringAsFixed(0)}점',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant)),
-                  ],
-                ),
-              ),
-              Icon(Icons.chevron_right_rounded,
-                  color: theme.colorScheme.outline),
-            ]),
+              const SizedBox(height: 16),
+              Text(title, style: theme.textTheme.titleMedium),
+              const SizedBox(height: 6),
+              Text(subtitle, style: theme.textTheme.bodySmall),
+            ],
           ),
         ),
       ),
@@ -350,9 +365,74 @@ class _SavedTimetablePreview extends StatelessWidget {
   }
 }
 
-// ── 빈 상태 ───────────────────────────────────────────────────────
+class _SavedTimetableCard extends StatelessWidget {
+  final SavedTimetable saved;
+  final VoidCallback onTap;
+
+  const _SavedTimetableCard({required this.saved, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      borderRadius: BorderRadius.circular(28),
+      onTap: onTap,
+      child: Ink(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Row(
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppTheme.blue.withValues(alpha: 0.18),
+                      AppTheme.cyan.withValues(alpha: 0.18),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: const Icon(
+                  Icons.calendar_month_rounded,
+                  color: AppTheme.blue,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(saved.name, style: theme.textTheme.titleMedium),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${saved.totalCredits}학점 · 공강 ${saved.freeDays}일 · 적합도 ${(saved.score * 100).toStringAsFixed(0)}점',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: theme.colorScheme.outline,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _EmptyState extends StatelessWidget {
   final VoidCallback onCreate;
+
   const _EmptyState({required this.onCreate});
 
   @override
@@ -361,29 +441,41 @@ class _EmptyState extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(16),
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(28),
         border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
-      child: Column(children: [
-        Icon(Icons.inbox_outlined,
-            size: 40, color: theme.colorScheme.outline),
-        const SizedBox(height: 8),
-        Text('아직 저장된 시간표가 없어요',
-            style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w500)),
-        const SizedBox(height: 4),
-        Text('AI 매칭으로 첫 시간표를 만들어보세요',
-            style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.outline)),
-        const SizedBox(height: 14),
-        FilledButton.icon(
-          onPressed: onCreate,
-          icon: const Icon(Icons.auto_awesome, size: 18),
-          label: const Text('시간표 매칭 시작'),
-        ),
-      ]),
+      child: Column(
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Icon(
+              Icons.auto_awesome_rounded,
+              color: theme.colorScheme.onPrimaryContainer,
+              size: 30,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text('아직 저장된 시간표가 없습니다.', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Text(
+            '선호 조건을 입력하면 상위 추천 시간표를 바로 확인할 수 있습니다.',
+            style: theme.textTheme.bodySmall,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 18),
+          FilledButton.icon(
+            onPressed: onCreate,
+            icon: const Icon(Icons.auto_awesome_rounded),
+            label: const Text('첫 추천 시작하기'),
+          ),
+        ],
+      ),
     );
   }
 }

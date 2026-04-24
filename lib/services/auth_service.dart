@@ -44,10 +44,7 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  Future<bool> signIn({
-    required String email,
-    required String password,
-  }) async {
+  Future<bool> signIn({required String email, required String password}) async {
     _isLoading = true;
     _lastError = null;
     notifyListeners();
@@ -123,12 +120,14 @@ class AuthService extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
-      final updated = await _repo.updateProfile(_user!.copyWith(
-        name: name,
-        studentId: studentId,
-        department: department,
-        grade: grade,
-      ));
+      final updated = await _repo.updateProfile(
+        _user!.copyWith(
+          name: name,
+          studentId: studentId,
+          department: department,
+          grade: grade,
+        ),
+      );
       _user = updated;
     } finally {
       _isLoading = false;

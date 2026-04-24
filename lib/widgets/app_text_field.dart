@@ -43,7 +43,8 @@ class _AppTextFieldState extends State<AppTextField> {
       controller: widget.controller,
       validator: widget.validator,
       obscureText: widget.isPassword ? _obscure : false,
-      keyboardType: widget.keyboardType ??
+      keyboardType:
+          widget.keyboardType ??
           (widget.isEmail ? TextInputType.emailAddress : TextInputType.text),
       textInputAction: widget.textInputAction,
       onEditingComplete: widget.onEditingComplete,
@@ -57,7 +58,9 @@ class _AppTextFieldState extends State<AppTextField> {
         suffixIcon: widget.isPassword
             ? IconButton(
                 icon: Icon(
-                  _obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                  _obscure
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
                   size: 20,
                 ),
                 onPressed: () => setState(() => _obscure = !_obscure),

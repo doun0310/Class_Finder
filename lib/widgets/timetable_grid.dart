@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+
 import '../models/course.dart';
 import '../services/genetic_algorithm.dart';
+import '../theme/app_theme.dart';
 
 class TimetableGrid extends StatelessWidget {
   final Timetable timetable;
-  final int? highlightMinHour; // 사용자 설정 최소 시작 시간
-  final int? highlightMaxHour; // 사용자 설정 최대 종료 시간
+  final int? highlightMinHour;
+  final int? highlightMaxHour;
+
   const TimetableGrid({
     super.key,
     required this.timetable,
@@ -13,149 +16,179 @@ class TimetableGrid extends StatelessWidget {
     this.highlightMaxHour,
   });
 
-  static const _days = ['월', '화', '수', '목', '금'];
   static const _startHour = 9;
   static const _endHour = 21;
-  static const _cellH = 48.0;
-  static const _cellW = 62.0;
-  static const _timeColW = 38.0;
-  static const _headerH = 32.0;
+  static const _timeColumnWidth = 46.0;
+  static const _dayColumnWidth = 78.0;
+  static const _headerHeight = 40.0;
+  static const _cellHeight = 54.0;
 
-  // 과목별 구분이 명확한 파스텔 팔레트
   static const _palette = [
-    Color(0xFF5C9BD6), // blue
-    Color(0xFF5CAD76), // green
-    Color(0xFFE8885A), // orange
-    Color(0xFF9B72B8), // purple
-    Color(0xFFD95F6B), // red-pink
-    Color(0xFF4AABAA), // teal
-    Color(0xFFD4A843), // gold
-    Color(0xFF7494C4), // steel blue
-    Color(0xFF69B57A), // mint
+    Color(0xFF1D4ED8),
+    Color(0xFF0891B2),
+    Color(0xFFF97316),
+    Color(0xFF16A34A),
+    Color(0xFF7C3AED),
+    Color(0xFFDB2777),
+    Color(0xFF0F766E),
+    Color(0xFFB45309),
   ];
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final colorMap = <String, Color>{};
+    final totalWidth = _timeColumnWidth + weekdays.length * _dayColumnWidth;
+    final totalHeight = _headerHeight + (_endHour - _startHour) * _cellHeight;
+    final colors = <String, Color>{};
     for (int i = 0; i < timetable.courses.length; i++) {
-      colorMap[timetable.courses[i].id] = _palette[i % _palette.length];
+      colors[timetable.courses[i].id] = _palette[i % _palette.length];
     }
 
-    final totalH = _headerH + (_endHour - _startHour) * _cellH;
-    final totalW = _timeColW + _days.length * _cellW;
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: SizedBox(
-        width: totalW,
-        height: totalH,
-        child: Stack(children: [
-          // 그리드 배경
-          CustomPaint(
-            size: Size(totalW, totalH),
-            painter: _GridPainter(
-              scheme: scheme,
-              minHour: highlightMinHour,
-              maxHour: highlightMaxHour,
-            ),
-          ),
-          // 요일 헤더
-          ..._days.asMap().entries.map((e) => Positioned(
-                left: _timeColW + e.key * _cellW,
-                top: 0,
-                width: _cellW,
-                height: _headerH,
-                child: Center(
-                  child: Text(e.value,
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                          color: scheme.onSurface)),
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(28),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SizedBox(
+          width: totalWidth,
+          height: totalHeight,
+          child: Stack(
+            children: [
+              CustomPaint(
+                size: Size(totalWidth, totalHeight),
+                painter: _GridPainter(
+                  scheme: Theme.of(context).colorScheme,
+                  minHour: highlightMinHour,
+                  maxHour: highlightMaxHour,
                 ),
-              )),
-          // 시간 레이블
-          ...List.generate(_endHour - _startHour, (i) {
-            final hour = _startHour + i;
-            final isLunch = hour == 12;
-            return Positioned(
-              left: 0,
-              top: _headerH + i * _cellH,
-              width: _timeColW,
-              height: _cellH,
-              child: Center(
-                child: Text('$hour',
-                    style: TextStyle(
-                        fontSize: 11,
-                        color: isLunch
-                            ? scheme.primary.withValues(alpha: 0.6)
-                            : scheme.outline,
-                        fontWeight:
-                            isLunch ? FontWeight.bold : FontWeight.normal)),
               ),
-            );
-          }),
-          // 과목 블록
-          ...timetable.courses.expand((c) => c.timeSlots.map((s) {
-                final dayIdx = _days.indexOf(s.day);
-                if (dayIdx < 0) return const SizedBox.shrink();
-                final top = _headerH + (s.startHour - _startHour) * _cellH;
-                final height = (s.endHour - s.startHour) * _cellH;
-                final color = colorMap[c.id]!;
+              ...weekdays.asMap().entries.map((entry) {
                 return Positioned(
-                  left: _timeColW + dayIdx * _cellW + 2,
-                  top: top + 2,
-                  width: _cellW - 4,
-                  height: height - 4,
-                  child: _CourseBlock(course: c, color: color),
+                  left: _timeColumnWidth + entry.key * _dayColumnWidth + 6,
+                  top: 4,
+                  width: _dayColumnWidth - 12,
+                  height: _headerHeight - 8,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Center(
+                      child: Text(
+                        entry.value,
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                    ),
+                  ),
                 );
-              })),
-        ]),
+              }),
+              ...List.generate(_endHour - _startHour, (index) {
+                final hour = _startHour + index;
+                final isLunch = hour == 12;
+                return Positioned(
+                  left: 0,
+                  top: _headerHeight + index * _cellHeight,
+                  width: _timeColumnWidth,
+                  height: _cellHeight,
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        '$hour:00',
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: isLunch
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                            ),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+              ...timetable.courses.expand((course) {
+                return course.timeSlots.map((slot) {
+                  final dayIndex = weekdays.indexOf(slot.day);
+                  if (dayIndex < 0) {
+                    return const SizedBox.shrink();
+                  }
+
+                  final top =
+                      _headerHeight +
+                      (slot.startHour - _startHour) * _cellHeight +
+                      3;
+                  final height = slot.durationHours * _cellHeight - 6;
+                  return Positioned(
+                    left: _timeColumnWidth + dayIndex * _dayColumnWidth + 4,
+                    top: top,
+                    width: _dayColumnWidth - 8,
+                    height: height,
+                    child: _CourseBlock(
+                      course: course,
+                      color: colors[course.id] ?? AppTheme.blue,
+                    ),
+                  );
+                });
+              }),
+            ],
+          ),
+        ),
       ),
     );
   }
 }
 
-// ── 과목 블록 ─────────────────────────────────────────────────────
 class _CourseBlock extends StatelessWidget {
   final Course course;
   final Color color;
+
   const _CourseBlock({required this.course, required this.color});
 
   @override
   Widget build(BuildContext context) {
     return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
       decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(8),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [color, color.withValues(alpha: 0.82)],
+        ),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: color.withValues(alpha: 0.35),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+            color: color.withValues(alpha: 0.2),
+            blurRadius: 10,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
             course.name,
-            style: const TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: Colors.white),
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
             textAlign: TextAlign.center,
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 6),
           Text(
             course.professor,
-            style: TextStyle(
-                fontSize: 9, color: Colors.white.withValues(alpha: 0.85)),
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: Colors.white.withValues(alpha: 0.85),
+            ),
             textAlign: TextAlign.center,
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
         ],
@@ -164,85 +197,109 @@ class _CourseBlock extends StatelessWidget {
   }
 }
 
-// ── 그리드 배경 ───────────────────────────────────────────────────
 class _GridPainter extends CustomPainter {
   final ColorScheme scheme;
   final int? minHour;
   final int? maxHour;
-  _GridPainter({required this.scheme, this.minHour, this.maxHour});
+
+  _GridPainter({
+    required this.scheme,
+    required this.minHour,
+    required this.maxHour,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
-    const days = 5;
-    const startHour = TimetableGrid._startHour;
-    const endHour = TimetableGrid._endHour;
-    const cellH = TimetableGrid._cellH;
-    const cellW = TimetableGrid._cellW;
-    const timeColW = TimetableGrid._timeColW;
-    const headerH = TimetableGrid._headerH;
-
     final linePaint = Paint()
-      ..color = scheme.outlineVariant.withValues(alpha: 0.5)
-      ..strokeWidth = 0.5;
-
-    final strongLinePaint = Paint()
       ..color = scheme.outlineVariant
       ..strokeWidth = 1;
+    final softLinePaint = Paint()
+      ..color = scheme.outlineVariant.withValues(alpha: 0.55)
+      ..strokeWidth = 0.8;
 
-    // 헤더 하단선
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(24)),
+      Paint()..color = scheme.surface,
+    );
+
+    final gridTop = TimetableGrid._headerHeight;
+    final gridLeft = TimetableGrid._timeColumnWidth;
+
     canvas.drawLine(
-        Offset(0, headerH), Offset(size.width, headerH), strongLinePaint);
+      Offset(gridLeft, 0),
+      Offset(gridLeft, size.height),
+      linePaint,
+    );
+    canvas.drawLine(Offset(0, gridTop), Offset(size.width, gridTop), linePaint);
 
-    // 시간 열 우측선
-    canvas.drawLine(
-        Offset(timeColW, 0), Offset(timeColW, size.height), strongLinePaint);
-
-    // 수평선
-    for (int i = 0; i <= endHour - startHour; i++) {
-      final y = headerH + i * cellH;
-      canvas.drawLine(Offset(timeColW, y), Offset(size.width, y), linePaint);
+    for (
+      int i = 0;
+      i <= TimetableGrid._endHour - TimetableGrid._startHour;
+      i++
+    ) {
+      final y = gridTop + i * TimetableGrid._cellHeight;
+      canvas.drawLine(
+        Offset(gridLeft, y),
+        Offset(size.width, y),
+        softLinePaint,
+      );
     }
 
-    // 수직선
-    for (int d = 0; d <= days; d++) {
-      final x = timeColW + d * cellW;
-      canvas.drawLine(Offset(x, headerH), Offset(x, size.height), linePaint);
+    for (int i = 0; i <= weekdays.length; i++) {
+      final x = gridLeft + i * TimetableGrid._dayColumnWidth;
+      canvas.drawLine(
+        Offset(x, gridTop),
+        Offset(x, size.height),
+        softLinePaint,
+      );
     }
 
-    // 점심 시간대 (12~13) 강조
-    final lunchTop = headerH + (12 - startHour) * cellH;
-    final lunchPaint = Paint()
-      ..color = scheme.primary.withValues(alpha: 0.06);
+    final lunchTop =
+        gridTop + (12 - TimetableGrid._startHour) * TimetableGrid._cellHeight;
     canvas.drawRect(
-        Rect.fromLTWH(timeColW, lunchTop, days * cellW, cellH), lunchPaint);
+      Rect.fromLTWH(
+        gridLeft,
+        lunchTop,
+        weekdays.length * TimetableGrid._dayColumnWidth,
+        TimetableGrid._cellHeight,
+      ),
+      Paint()..color = scheme.primary.withValues(alpha: 0.05),
+    );
 
-    // 점심 레이블 라인 (살짝 진하게)
-    final lunchLinePaint = Paint()
-      ..color = scheme.primary.withValues(alpha: 0.2)
-      ..strokeWidth = 1;
-    canvas.drawLine(
-        Offset(timeColW, lunchTop), Offset(size.width, lunchTop), lunchLinePaint);
-
-    // 시간 범위 외 영역 음영 (사용자가 설정한 범위 밖)
-    if (minHour != null && minHour! > startHour) {
-      final restrictedH = (minHour! - startHour) * cellH;
+    if (minHour != null && minHour! > TimetableGrid._startHour) {
+      final height =
+          (minHour! - TimetableGrid._startHour) * TimetableGrid._cellHeight;
       canvas.drawRect(
-          Rect.fromLTWH(timeColW, headerH, days * cellW, restrictedH),
-          Paint()..color = scheme.errorContainer.withValues(alpha: 0.12));
+        Rect.fromLTWH(
+          gridLeft,
+          gridTop,
+          weekdays.length * TimetableGrid._dayColumnWidth,
+          height,
+        ),
+        Paint()..color = scheme.error.withValues(alpha: 0.06),
+      );
     }
-    if (maxHour != null && maxHour! < endHour) {
-      final allowedH = (maxHour! - startHour) * cellH;
-      final restrictedY = headerH + allowedH;
+
+    if (maxHour != null && maxHour! < TimetableGrid._endHour) {
+      final top =
+          gridTop +
+          (maxHour! - TimetableGrid._startHour) * TimetableGrid._cellHeight;
       canvas.drawRect(
-          Rect.fromLTWH(timeColW, restrictedY, days * cellW,
-              size.height - restrictedY),
-          Paint()..color = scheme.errorContainer.withValues(alpha: 0.12));
+        Rect.fromLTWH(
+          gridLeft,
+          top,
+          weekdays.length * TimetableGrid._dayColumnWidth,
+          size.height - top,
+        ),
+        Paint()..color = scheme.error.withValues(alpha: 0.06),
+      );
     }
   }
 
   @override
-  bool shouldRepaint(_GridPainter old) =>
-      old.scheme != scheme ||
-      old.minHour != minHour ||
-      old.maxHour != maxHour;
+  bool shouldRepaint(covariant _GridPainter oldDelegate) {
+    return oldDelegate.scheme != scheme ||
+        oldDelegate.minHour != minHour ||
+        oldDelegate.maxHour != maxHour;
+  }
 }

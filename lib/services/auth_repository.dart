@@ -36,9 +36,9 @@ class AuthException implements Exception {
 
 // ── 로컬 구현 (SharedPreferences 기반, 백엔드 시뮬레이션) ──────────
 class LocalAuthRepository implements AuthRepository {
-  static const _usersKey = 'auth.users';      // 등록된 사용자 전체 저장소
-  static const _sessionKey = 'auth.session';  // 현재 세션 (userId)
-  static const _tokenKey = 'auth.token';      // 현재 토큰
+  static const _usersKey = 'auth.users'; // 등록된 사용자 전체 저장소
+  static const _sessionKey = 'auth.session'; // 현재 세션 (userId)
+  static const _tokenKey = 'auth.token'; // 현재 토큰
 
   static String _hash(String password, String salt) {
     final bytes = utf8.encode('$password:$salt');
@@ -183,8 +183,10 @@ class RemoteAuthRepository implements AuthRepository {
     required String email,
     required String password,
   }) async {
-    final res = await client.post('/auth/signin',
-        {'email': email, 'password': password}, withAuth: false);
+    final res = await client.post('/auth/signin', {
+      'email': email,
+      'password': password,
+    }, withAuth: false);
     final token = res['token'] as String;
     client.setToken(token);
     return AuthResult(

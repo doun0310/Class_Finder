@@ -56,10 +56,12 @@ class _SignupScreenState extends State<SignupScreen> {
     if (ok) {
       Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(auth.lastError ?? '회원가입에 실패했습니다.'),
-        backgroundColor: Theme.of(context).colorScheme.error,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(auth.lastError ?? '회원가입에 실패했습니다.'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
     }
   }
 
@@ -75,9 +77,12 @@ class _SignupScreenState extends State<SignupScreen> {
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              Text('계정 정보',
-                  style: theme.textTheme.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.bold)),
+              Text(
+                '계정 정보',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 12),
               AppTextField(
                 controller: _email,
@@ -116,9 +121,12 @@ class _SignupScreenState extends State<SignupScreen> {
                 },
               ),
               const SizedBox(height: 24),
-              Text('프로필 정보',
-                  style: theme.textTheme.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.bold)),
+              Text(
+                '프로필 정보',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 12),
               AppTextField(
                 controller: _name,
@@ -157,31 +165,39 @@ class _SignupScreenState extends State<SignupScreen> {
                 onChanged: (v) => setState(() => _department = v ?? '기타'),
               ),
               const SizedBox(height: 16),
-              Row(children: [
-                Text('학년', style: theme.textTheme.bodyMedium),
-                const Spacer(),
-                SegmentedButton<int>(
-                  segments: [1, 2, 3, 4]
-                      .map((g) =>
-                          ButtonSegment(value: g, label: Text('$g학년')))
-                      .toList(),
-                  selected: {_grade},
-                  onSelectionChanged: (s) => setState(() => _grade = s.first),
-                  style: const ButtonStyle(
-                      visualDensity: VisualDensity.compact),
-                ),
-              ]),
+              Row(
+                children: [
+                  Text('학년', style: theme.textTheme.bodyMedium),
+                  const Spacer(),
+                  SegmentedButton<int>(
+                    segments: [1, 2, 3, 4]
+                        .map(
+                          (g) => ButtonSegment(value: g, label: Text('$g학년')),
+                        )
+                        .toList(),
+                    selected: {_grade},
+                    onSelectionChanged: (s) => setState(() => _grade = s.first),
+                    style: const ButtonStyle(
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 32),
               FilledButton(
                 onPressed: auth.isLoading ? null : _signUp,
                 style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(52)),
+                  minimumSize: const Size.fromHeight(52),
+                ),
                 child: auth.isLoading
                     ? const SizedBox(
                         width: 22,
                         height: 22,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
                     : const Text('가입하고 시작하기'),
               ),
               const SizedBox(height: 24),

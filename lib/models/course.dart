@@ -1,19 +1,37 @@
+const weekdays = ['월', '화', '수', '목', '금'];
+
 class TimeSlot {
-  final String day; // 월화수목금
+  final String day;
   final int startHour;
   final int endHour;
 
-  const TimeSlot({required this.day, required this.startHour, required this.endHour});
+  const TimeSlot({
+    required this.day,
+    required this.startHour,
+    required this.endHour,
+  });
+
+  int get durationHours => endHour - startHour;
 
   bool conflictsWith(TimeSlot other) =>
-      day == other.day && startHour < other.endHour && endHour > other.startHour;
+      day == other.day &&
+      startHour < other.endHour &&
+      endHour > other.startHour;
 
-  /// 교시 문자열 (예: 9:00~12:00)
-  String get timeLabel => '${startHour.toString().padLeft(2, '0')}:00 ~ ${endHour.toString().padLeft(2, '0')}:00';
+  String get timeLabel =>
+      '${startHour.toString().padLeft(2, '0')}:00 ~ ${endHour.toString().padLeft(2, '0')}:00';
 
-  Map<String, dynamic> toJson() => {'day': day, 'startHour': startHour, 'endHour': endHour};
-  factory TimeSlot.fromJson(Map<String, dynamic> j) =>
-      TimeSlot(day: j['day'], startHour: j['startHour'], endHour: j['endHour']);
+  Map<String, dynamic> toJson() => {
+    'day': day,
+    'startHour': startHour,
+    'endHour': endHour,
+  };
+
+  factory TimeSlot.fromJson(Map<String, dynamic> json) => TimeSlot(
+    day: json['day'] as String,
+    startHour: json['startHour'] as int,
+    endHour: json['endHour'] as int,
+  );
 }
 
 class Course {
@@ -21,11 +39,11 @@ class Course {
   final String name;
   final String professor;
   final int credit;
-  final double rating; // 0~5
-  final int difficulty; // 1~5
+  final double rating;
+  final int difficulty;
   final bool hasTeamProject;
   final bool isMajorRequired;
-  final int grade; // 대상 학년
+  final int grade;
   final List<TimeSlot> timeSlots;
 
   const Course({
@@ -41,38 +59,54 @@ class Course {
     required this.timeSlots,
   });
 
-  /// 과목 코드 (분반 제외)
   String get courseCode => id.split('-').first;
 
-  /// 분반
   String get section => id.split('-').last;
 
-  /// 시간표 요약 문자열 (예: 월9~12, 수13~16)
-  String get timeSummary => timeSlots.map((s) => '${s.day} ${s.startHour}~${s.endHour}').join(', ');
+  int get totalHours =>
+      timeSlots.fold(0, (sum, slot) => sum + slot.durationHours);
+
+  Set<String> get activeDays => timeSlots.map((slot) => slot.day).toSet();
+
+  int get earliestStartHour => timeSlots
+      .map((slot) => slot.startHour)
+      .reduce((value, element) => value < element ? value : element);
+
+  int get latestEndHour => timeSlots
+      .map((slot) => slot.endHour)
+      .reduce((value, element) => value > element ? value : element);
+
+  bool occursOn(String day) => timeSlots.any((slot) => slot.day == day);
+
+  String get timeSummary => timeSlots
+      .map((slot) => '${slot.day} ${slot.startHour}~${slot.endHour}')
+      .join(', ');
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'professor': professor,
-        'credit': credit,
-        'rating': rating,
-        'difficulty': difficulty,
-        'hasTeamProject': hasTeamProject,
-        'isMajorRequired': isMajorRequired,
-        'grade': grade,
-        'timeSlots': timeSlots.map((t) => t.toJson()).toList(),
-      };
+    'id': id,
+    'name': name,
+    'professor': professor,
+    'credit': credit,
+    'rating': rating,
+    'difficulty': difficulty,
+    'hasTeamProject': hasTeamProject,
+    'isMajorRequired': isMajorRequired,
+    'grade': grade,
+    'timeSlots': timeSlots.map((slot) => slot.toJson()).toList(),
+  };
 
-  factory Course.fromJson(Map<String, dynamic> j) => Course(
-        id: j['id'],
-        name: j['name'],
-        professor: j['professor'],
-        credit: j['credit'],
-        rating: (j['rating'] as num).toDouble(),
-        difficulty: j['difficulty'],
-        hasTeamProject: j['hasTeamProject'],
-        isMajorRequired: j['isMajorRequired'],
-        grade: j['grade'] ?? 0,
-        timeSlots: (j['timeSlots'] as List).map((t) => TimeSlot.fromJson(t)).toList(),
-      );
+  factory Course.fromJson(Map<String, dynamic> json) => Course(
+    id: json['id'] as String,
+    name: json['name'] as String,
+    professor: json['professor'] as String,
+    credit: json['credit'] as int,
+    rating: (json['rating'] as num).toDouble(),
+    difficulty: json['difficulty'] as int,
+    hasTeamProject: json['hasTeamProject'] as bool,
+    isMajorRequired: json['isMajorRequired'] as bool,
+    grade: json['grade'] as int? ?? 0,
+    timeSlots: (json['timeSlots'] as List)
+        .map((slot) => TimeSlot.fromJson(slot as Map<String, dynamic>))
+        .toList(),
+  );
 }

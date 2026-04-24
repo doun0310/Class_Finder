@@ -61,10 +61,10 @@ class TimetableRepository {
 
   /// SavedTimetable → Timetable 변환 (시간표 그리드에 사용)
   static Timetable toTimetable(SavedTimetable saved) => Timetable(
-        courses: saved.courses,
-        score: saved.score,
-        scoreBreakdown: saved.scoreBreakdown,
-      );
+    courses: saved.courses,
+    score: saved.score,
+    scoreBreakdown: saved.scoreBreakdown,
+  );
 
   // ── 내부 ──────────────────────────────────────────────────────
   Future<List<SavedTimetable>> _readAll() async {
@@ -74,8 +74,9 @@ class TimetableRepository {
     try {
       final list = jsonDecode(raw) as List;
       return list
-          .map((e) =>
-              SavedTimetable.fromJson(Map<String, dynamic>.from(e as Map)))
+          .map(
+            (e) => SavedTimetable.fromJson(Map<String, dynamic>.from(e as Map)),
+          )
           .toList();
     } catch (_) {
       return [];
@@ -90,9 +91,6 @@ class TimetableRepository {
   static String _randomId() {
     final rng = Random.secure();
     final bytes = List<int>.generate(12, (_) => rng.nextInt(256));
-    return bytes
-        .map((b) => b.toRadixString(16).padLeft(2, '0'))
-        .join();
+    return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
 }
-

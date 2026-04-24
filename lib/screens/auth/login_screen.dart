@@ -34,10 +34,12 @@ class _LoginScreenState extends State<LoginScreen> {
     if (ok) {
       Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(auth.lastError ?? '로그인에 실패했습니다.'),
-        backgroundColor: Theme.of(context).colorScheme.error,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(auth.lastError ?? '로그인에 실패했습니다.'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
     }
   }
 
@@ -65,19 +67,28 @@ class _LoginScreenState extends State<LoginScreen> {
                       color: theme.colorScheme.primaryContainer,
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: Icon(Icons.auto_awesome,
-                        size: 36, color: theme.colorScheme.onPrimaryContainer),
+                    child: Icon(
+                      Icons.auto_awesome,
+                      size: 36,
+                      color: theme.colorScheme.onPrimaryContainer,
+                    ),
                   ),
                   const SizedBox(height: 20),
-                  Text('ClassFinder',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.headlineMedium
-                          ?.copyWith(fontWeight: FontWeight.w800)),
+                  Text(
+                    'ClassFinder',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                   const SizedBox(height: 6),
-                  Text('AI 시간표 매칭에 오신 것을 환영합니다',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant)),
+                  Text(
+                    'AI 시간표 매칭에 오신 것을 환영합니다',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                   const SizedBox(height: 36),
 
                   // ── 이메일 ──────────────────────────────────
@@ -123,22 +134,34 @@ class _LoginScreenState extends State<LoginScreen> {
                             width: 22,
                             height: 22,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white))
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
                         : const Text('로그인'),
                   ),
                   const SizedBox(height: 16),
 
                   // ── 구분선 ──────────────────────────────────
-                  Row(children: [
-                    Expanded(child: Divider(color: theme.colorScheme.outlineVariant)),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Text('또는',
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Divider(color: theme.colorScheme.outlineVariant),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          '또는',
                           style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.outline)),
-                    ),
-                    Expanded(child: Divider(color: theme.colorScheme.outlineVariant)),
-                  ]),
+                            color: theme.colorScheme.outline,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Divider(color: theme.colorScheme.outlineVariant),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 16),
 
                   // ── 회원가입 ────────────────────────────────
@@ -146,10 +169,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     onPressed: auth.isLoading
                         ? null
                         : () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => const SignupScreen()),
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const SignupScreen(),
                             ),
+                          ),
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size.fromHeight(52),
                     ),
