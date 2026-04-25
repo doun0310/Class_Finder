@@ -1,9 +1,17 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 
 class MatchingLoadingOverlay extends StatefulWidget {
-  const MatchingLoadingOverlay({super.key});
+  final Duration? expectedDuration;
+  final Duration? recentDuration;
+
+  const MatchingLoadingOverlay({
+    super.key,
+    this.expectedDuration,
+    this.recentDuration,
+  });
 
   @override
   State<MatchingLoadingOverlay> createState() => _MatchingLoadingOverlayState();
@@ -20,30 +28,55 @@ class _MatchingLoadingOverlayState extends State<MatchingLoadingOverlay>
   ];
 
   late final AnimationController _controller;
+  late final Stopwatch _stopwatch;
+  late final Duration _normalizedExpectedDuration;
+  Timer? _ticker;
   int _step = 0;
+  double _progress = 0.08;
 
   @override
   void initState() {
     super.initState();
+    _normalizedExpectedDuration = _normalizeDuration(widget.expectedDuration);
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 2),
+      duration: const Duration(milliseconds: 1600),
     )..repeat();
+    _stopwatch = Stopwatch()..start();
+    _ticker = Timer.periodic(
+      const Duration(milliseconds: 80),
+      (_) => _advance(),
+    );
     _advance();
   }
 
-  Future<void> _advance() async {
-    for (int i = 0; i < _steps.length; i++) {
-      await Future.delayed(const Duration(milliseconds: 340));
-      if (!mounted) {
-        return;
-      }
-      setState(() => _step = i);
+  void _advance() {
+    if (!mounted) {
+      return;
     }
+
+    final expectedMs = max(120, _normalizedExpectedDuration.inMilliseconds);
+    final elapsedMs = _stopwatch.elapsedMilliseconds;
+    final rawProgress = elapsedMs / expectedMs;
+    final easedProgress = rawProgress <= 1
+        ? rawProgress * 0.9
+        : 0.9 + min(0.08, (rawProgress - 1) * 0.04);
+    final nextProgress = easedProgress.clamp(0.08, 0.98);
+    final nextStep = min(
+      _steps.length - 1,
+      (nextProgress * _steps.length).floor(),
+    );
+
+    setState(() {
+      _progress = nextProgress;
+      _step = nextStep;
+    });
   }
 
   @override
   void dispose() {
+    _ticker?.cancel();
+    _stopwatch.stop();
     _controller.dispose();
     super.dispose();
   }
@@ -70,6 +103,21 @@ class _MatchingLoadingOverlayState extends State<MatchingLoadingOverlay>
               const SizedBox(height: 22),
               Text('시간표를 조합하는 중입니다.', style: theme.textTheme.titleLarge),
               const SizedBox(height: 8),
+              Text(
+                '예상 약 ${_formatDuration(widget.expectedDuration ?? _normalizedExpectedDuration)}',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              if (widget.recentDuration != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  '최근 측정 ${_formatDuration(widget.recentDuration!)}',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+              const SizedBox(height: 12),
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 240),
                 child: Text(
@@ -82,10 +130,7 @@ class _MatchingLoadingOverlayState extends State<MatchingLoadingOverlay>
               const SizedBox(height: 18),
               ClipRRect(
                 borderRadius: BorderRadius.circular(999),
-                child: LinearProgressIndicator(
-                  value: (_step + 1) / _steps.length,
-                  minHeight: 8,
-                ),
+                child: LinearProgressIndicator(value: _progress, minHeight: 8),
               ),
             ],
           ),
@@ -157,4 +202,16 @@ class _HelixPainter extends CustomPainter {
   bool shouldRepaint(covariant _HelixPainter oldDelegate) {
     return oldDelegate.progress != progress || oldDelegate.color != color;
   }
+}
+
+Duration _normalizeDuration(Duration? duration) {
+  final milliseconds = (duration ?? const Duration(milliseconds: 180))
+      .inMilliseconds
+      .clamp(120, 2400);
+  return Duration(milliseconds: milliseconds);
+}
+
+String _formatDuration(Duration duration) {
+  final seconds = duration.inMilliseconds / 1000;
+  return '${seconds.toStringAsFixed(seconds < 1 ? 1 : 2)}초';
 }

@@ -14,6 +14,7 @@ class AppTextField extends StatefulWidget {
   final String? Function(String?)? validator;
   final TextInputAction textInputAction;
   final VoidCallback? onEditingComplete;
+  final ValueChanged<String>? onChanged;
 
   const AppTextField({
     super.key,
@@ -28,6 +29,7 @@ class AppTextField extends StatefulWidget {
     this.validator,
     this.textInputAction = TextInputAction.next,
     this.onEditingComplete,
+    this.onChanged,
   });
 
   @override
@@ -48,6 +50,7 @@ class _AppTextFieldState extends State<AppTextField> {
           (widget.isEmail ? TextInputType.emailAddress : TextInputType.text),
       textInputAction: widget.textInputAction,
       onEditingComplete: widget.onEditingComplete,
+      onChanged: widget.onChanged,
       inputFormatters: widget.inputFormatters,
       autocorrect: false,
       enableSuggestions: !widget.isPassword,

@@ -15,12 +15,14 @@ class AuthService extends ChangeNotifier {
   String? _token;
   AuthStatus _status = AuthStatus.unknown;
   String? _lastError;
+  AuthErrorCode? _lastErrorCode;
   bool _isLoading = false;
 
   User? get user => _user;
   String? get token => _token;
   AuthStatus get status => _status;
   String? get lastError => _lastError;
+  AuthErrorCode? get lastErrorCode => _lastErrorCode;
   bool get isLoading => _isLoading;
   bool get isAuthenticated => _status == AuthStatus.authenticated;
 
@@ -47,6 +49,7 @@ class AuthService extends ChangeNotifier {
   Future<bool> signIn({required String email, required String password}) async {
     _isLoading = true;
     _lastError = null;
+    _lastErrorCode = null;
     notifyListeners();
     try {
       final result = await _repo.signIn(email: email, password: password);
@@ -55,10 +58,37 @@ class AuthService extends ChangeNotifier {
       _status = AuthStatus.authenticated;
       return true;
     } on AuthException catch (e) {
+      _lastErrorCode = e.code;
       _lastError = e.message;
       return false;
     } catch (e) {
+      _lastErrorCode = AuthErrorCode.unknown;
       _lastError = '로그인 중 오류가 발생했습니다.';
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> signInWithProvider(AuthProvider provider) async {
+    _isLoading = true;
+    _lastError = null;
+    _lastErrorCode = null;
+    notifyListeners();
+    try {
+      final result = await _repo.signInWithProvider(provider);
+      _user = result.user;
+      _token = result.token;
+      _status = AuthStatus.authenticated;
+      return true;
+    } on AuthException catch (e) {
+      _lastErrorCode = e.code;
+      _lastError = e.message;
+      return false;
+    } catch (e) {
+      _lastErrorCode = AuthErrorCode.unknown;
+      _lastError = '소셜 로그인 중 오류가 발생했습니다.';
       return false;
     } finally {
       _isLoading = false;
@@ -76,6 +106,7 @@ class AuthService extends ChangeNotifier {
   }) async {
     _isLoading = true;
     _lastError = null;
+    _lastErrorCode = null;
     notifyListeners();
     try {
       final result = await _repo.signUp(
@@ -91,11 +122,34 @@ class AuthService extends ChangeNotifier {
       _status = AuthStatus.authenticated;
       return true;
     } on AuthException catch (e) {
+      _lastErrorCode = e.code;
       _lastError = e.message;
       return false;
     } catch (e) {
+      _lastErrorCode = AuthErrorCode.unknown;
       _lastError = '회원가입 중 오류가 발생했습니다.';
       return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<String?> requestPasswordReset({required String email}) async {
+    _isLoading = true;
+    _lastError = null;
+    _lastErrorCode = null;
+    notifyListeners();
+    try {
+      return await _repo.requestPasswordReset(email: email);
+    } on AuthException catch (e) {
+      _lastErrorCode = e.code;
+      _lastError = e.message;
+      return null;
+    } catch (e) {
+      _lastErrorCode = AuthErrorCode.unknown;
+      _lastError = '비밀번호 재설정 요청 중 오류가 발생했습니다.';
+      return null;
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -107,6 +161,8 @@ class AuthService extends ChangeNotifier {
     _user = null;
     _token = null;
     _status = AuthStatus.unauthenticated;
+    _lastError = null;
+    _lastErrorCode = null;
     notifyListeners();
   }
 
@@ -137,6 +193,7 @@ class AuthService extends ChangeNotifier {
 
   void clearError() {
     _lastError = null;
+    _lastErrorCode = null;
     notifyListeners();
   }
 }

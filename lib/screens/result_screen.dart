@@ -357,7 +357,7 @@ class _RankBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return SizedBox(
-      height: 126,
+      height: 134,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: results.length,
@@ -415,11 +415,22 @@ class _RankBar extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      '${timetable.totalCredits}학점 · 공강 ${timetable.freeDays}일 · 평점 ${timetable.averageRating.toStringAsFixed(1)}',
-                      style: theme.textTheme.bodySmall,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.bottomLeft,
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              '${timetable.totalCredits}학점 · 공강 ${timetable.freeDays}일 · 평점 ${timetable.averageRating.toStringAsFixed(1)}',
+                              softWrap: false,
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),

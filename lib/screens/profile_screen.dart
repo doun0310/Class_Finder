@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../services/auth_service.dart';
+
 import '../models/user.dart';
+import '../services/auth_service.dart';
+import '../theme/app_theme.dart';
+import '../widgets/app_text_field.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final auth = context.watch<AuthService>();
     final user = auth.user;
 
@@ -19,89 +22,90 @@ class ProfileScreen extends StatelessWidget {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          SliverAppBar.large(
+          SliverAppBar(
+            pinned: true,
             automaticallyImplyLeading: false,
+            backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
             title: const Text('프로필'),
-            backgroundColor: theme.colorScheme.surface,
+            actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: IconButton.filledTonal(
+                  onPressed: () => _showEditSheet(context, user),
+                  icon: const Icon(Icons.edit_outlined),
+                  tooltip: '프로필 수정',
+                ),
+              ),
+            ],
           ),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
               child: Column(
                 children: [
-                  // ── 아바타 카드 ────────────────────────────
-                  _ProfileAvatarCard(user: user),
+                  _ProfileHeroCard(
+                    user: user,
+                    onEdit: () => _showEditSheet(context, user),
+                    onSaved: () => Navigator.pushNamed(context, '/saved'),
+                  ),
                   const SizedBox(height: 16),
-
-                  // ── 기본 정보 ──────────────────────────────
-                  _InfoSection(
+                  _SectionCard(
                     title: '계정 정보',
-                    tiles: [
-                      _InfoTileData(
-                        icon: Icons.person_outline,
-                        label: '이름',
-                        value: user.name,
-                      ),
-                      _InfoTileData(
-                        icon: Icons.mail_outline,
-                        label: '이메일',
-                        value: user.email,
-                      ),
-                      _InfoTileData(
-                        icon: Icons.badge_outlined,
-                        label: '학번',
-                        value: user.studentId,
-                      ),
-                      _InfoTileData(
-                        icon: Icons.school_outlined,
-                        label: '학과',
-                        value: '${user.department} · ${user.grade}학년',
-                      ),
-                    ],
-                    trailing: TextButton.icon(
-                      onPressed: () => _showEditSheet(context, user),
-                      icon: const Icon(Icons.edit_outlined, size: 16),
-                      label: const Text('수정'),
+                    subtitle: '추천과 저장 흐름에 연결되는 기본 프로필입니다.',
+                    child: Column(
+                      children: [
+                        _DetailTile(
+                          icon: Icons.person_outline_rounded,
+                          label: '이름',
+                          value: user.name,
+                        ),
+                        _DetailTile(
+                          icon: Icons.mail_outline_rounded,
+                          label: '이메일',
+                          value: user.email,
+                        ),
+                        _DetailTile(
+                          icon: Icons.badge_outlined,
+                          label: '학번',
+                          value: user.studentId,
+                        ),
+                        _DetailTile(
+                          icon: Icons.school_outlined,
+                          label: '학과 / 학년',
+                          value: '${user.department} · ${user.grade}학년',
+                          isLast: true,
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 16),
-
-                  // ── 앱 설정 ────────────────────────────────
-                  _InfoSection(
-                    title: '앱 설정',
-                    tiles: [
-                      _InfoTileData(
-                        icon: Icons.bookmark_outline,
-                        label: '저장된 시간표',
-                        value: '보기',
-                        onTap: () => Navigator.pushNamed(context, '/saved'),
-                      ),
-                      _InfoTileData(
-                        icon: Icons.info_outline,
-                        label: '앱 버전',
-                        value: '1.0.0',
-                      ),
-                    ],
+                  _SectionCard(
+                    title: '바로가기',
+                    subtitle: '자주 확인하는 정보와 기능을 빠르게 열 수 있습니다.',
+                    child: Column(
+                      children: [
+                        _ActionTile(
+                          icon: Icons.bookmark_added_outlined,
+                          title: '저장한 시간표',
+                          subtitle: '보관 중인 추천 결과와 비교용 시간표를 확인합니다.',
+                          onTap: () => Navigator.pushNamed(context, '/saved'),
+                        ),
+                        _ActionTile(
+                          icon: Icons.info_outline_rounded,
+                          title: '앱 버전',
+                          subtitle: '현재 설치된 버전은 1.0.0 입니다.',
+                          isLast: true,
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 24),
-
-                  // ── 로그아웃 ───────────────────────────────
-                  OutlinedButton.icon(
-                    onPressed: () => _confirmSignOut(context),
-                    icon: Icon(
-                      Icons.logout,
-                      size: 18,
-                      color: theme.colorScheme.error,
-                    ),
-                    label: Text(
-                      '로그아웃',
-                      style: TextStyle(color: theme.colorScheme.error),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
-                      side: BorderSide(
-                        color: theme.colorScheme.error.withValues(alpha: 0.5),
-                      ),
+                  const SizedBox(height: 16),
+                  _SectionCard(
+                    title: '보안',
+                    subtitle: '현재 기기 세션과 계정 연결 상태를 관리합니다.',
+                    child: _DangerZone(
+                      onSignOut: () => _confirmSignOut(context),
                     ),
                   ),
                 ],
@@ -118,37 +122,231 @@ class ProfileScreen extends StatelessWidget {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
+      showDragHandle: false,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
       ),
       builder: (_) => _EditProfileSheet(user: user),
     );
   }
 
   void _confirmSignOut(BuildContext context) {
-    showDialog(
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    showModalBottomSheet(
       context: context,
-      builder: (dCtx) => AlertDialog(
-        title: const Text('로그아웃'),
-        content: const Text('정말 로그아웃 하시겠어요?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dCtx),
-            child: const Text('취소'),
+      useSafeArea: true,
+      showDragHandle: false,
+      backgroundColor: scheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      builder: (sheetContext) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: scheme.outlineVariant,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: scheme.errorContainer,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Icon(
+                  Icons.logout_rounded,
+                  color: scheme.onErrorContainer,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text('이 기기에서 로그아웃', style: theme.textTheme.headlineSmall),
+              const SizedBox(height: 8),
+              Text(
+                '저장한 시간표와 프로필 정보는 유지되며, 다시 로그인하면 이어서 사용할 수 있습니다.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 18),
+              _SignOutInfoRow(
+                icon: Icons.shield_outlined,
+                text: '현재 기기 세션만 종료됩니다.',
+              ),
+              _SignOutInfoRow(
+                icon: Icons.bookmark_outline_rounded,
+                text: '저장한 시간표와 추천 기록은 유지됩니다.',
+              ),
+              _SignOutInfoRow(
+                icon: Icons.login_rounded,
+                text: '언제든 다시 로그인해서 바로 이어갈 수 있습니다.',
+              ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(sheetContext),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(54),
+                      ),
+                      child: const Text('취소'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () async {
+                        Navigator.pop(sheetContext);
+                        await context.read<AuthService>().signOut();
+                        if (context.mounted) {
+                          Navigator.pushNamedAndRemoveUntil(
+                            context,
+                            '/login',
+                            (_) => false,
+                          );
+                        }
+                      },
+                      style: FilledButton.styleFrom(
+                        backgroundColor: scheme.error,
+                        foregroundColor: scheme.onError,
+                        minimumSize: const Size.fromHeight(54),
+                      ),
+                      icon: const Icon(Icons.logout_rounded, size: 18),
+                      label: const Text('로그아웃'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-          FilledButton.tonal(
-            onPressed: () async {
-              Navigator.pop(dCtx);
-              await context.read<AuthService>().signOut();
-              if (context.mounted) {
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/login',
-                  (_) => false,
-                );
-              }
+        );
+      },
+    );
+  }
+}
+
+class _ProfileHeroCard extends StatelessWidget {
+  final User user;
+  final VoidCallback onEdit;
+  final VoidCallback onSaved;
+
+  const _ProfileHeroCard({
+    required this.user,
+    required this.onEdit,
+    required this.onSaved,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(32),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            scheme.primaryContainer,
+            scheme.secondaryContainer.withValues(alpha: 0.86),
+            scheme.surface,
+          ],
+        ),
+        border: Border.all(color: scheme.outlineVariant),
+        boxShadow: [
+          BoxShadow(
+            color: scheme.shadow.withValues(alpha: 0.08),
+            blurRadius: 28,
+            offset: const Offset(0, 16),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 720;
+
+              return compact
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _HeroIdentity(user: user),
+                        const SizedBox(height: 18),
+                        _HeroActions(onEdit: onEdit, onSaved: onSaved),
+                      ],
+                    )
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: _HeroIdentity(user: user)),
+                        const SizedBox(width: 16),
+                        _HeroActions(onEdit: onEdit, onSaved: onSaved),
+                      ],
+                    );
             },
-            child: const Text('로그아웃'),
+          ),
+          const SizedBox(height: 22),
+          Text(
+            '추천과 저장 흐름이 계정에 연결되어 있습니다.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 18),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final columns = width >= 880
+                  ? 3
+                  : width >= 560
+                  ? 2
+                  : 1;
+              final cardWidth = (width - (12 * (columns - 1))) / columns;
+
+              final items = [
+                _HeroStat(
+                  label: '학과 / 학년',
+                  value: '${user.department} · ${user.grade}학년',
+                ),
+                _HeroStat(label: '학번', value: user.studentId),
+                _HeroStat(
+                  label: '가입 시점',
+                  value: _formatJoinedAt(user.createdAt),
+                ),
+              ];
+
+              return Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: items
+                    .map(
+                      (item) => SizedBox(
+                        width: cardWidth,
+                        child: _HeroStatCard(item: item),
+                      ),
+                    )
+                    .toList(),
+              );
+            },
           ),
         ],
       ),
@@ -156,65 +354,126 @@ class ProfileScreen extends StatelessWidget {
   }
 }
 
-// ── 아바타 카드 ───────────────────────────────────────────────────
-class _ProfileAvatarCard extends StatelessWidget {
+class _HeroIdentity extends StatelessWidget {
   final User user;
-  const _ProfileAvatarCard({required this.user});
+
+  const _HeroIdentity({required this.user});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 36,
-            backgroundColor: theme.colorScheme.primaryContainer,
+    final scheme = theme.colorScheme;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 72,
+          height: 72,
+          decoration: BoxDecoration(
+            color: scheme.surface.withValues(alpha: 0.76),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: scheme.outlineVariant),
+          ),
+          child: Center(
             child: Text(
               user.initial,
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: theme.colorScheme.onPrimaryContainer,
+              style: theme.textTheme.headlineMedium?.copyWith(
+                color: scheme.primary,
               ),
             ),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  user.name,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(user.name, style: theme.textTheme.headlineSmall),
+              const SizedBox(height: 6),
+              Text(
+                user.email,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _HeroChip(
+                    icon: Icons.school_outlined,
+                    label: user.department,
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  user.email,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                  _HeroChip(
+                    icon: Icons.auto_awesome_rounded,
+                    label: '${user.grade}학년 개인화 프로필',
                   ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    _ProfileBadge(user.department, theme.colorScheme.primary),
-                    const SizedBox(width: 6),
-                    _ProfileBadge(
-                      '${user.grade}학년',
-                      theme.colorScheme.secondary,
-                    ),
-                  ],
-                ),
-              ],
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HeroActions extends StatelessWidget {
+  final VoidCallback onEdit;
+  final VoidCallback onSaved;
+
+  const _HeroActions({required this.onEdit, required this.onSaved});
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        FilledButton.icon(
+          onPressed: onEdit,
+          icon: const Icon(Icons.edit_outlined, size: 18),
+          label: const Text('정보 수정'),
+        ),
+        OutlinedButton.icon(
+          onPressed: onSaved,
+          icon: const Icon(Icons.bookmark_added_outlined, size: 18),
+          label: const Text('저장 시간표'),
+        ),
+      ],
+    );
+  }
+}
+
+class _HeroChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _HeroChip({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: scheme.surface.withValues(alpha: 0.76),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: scheme.primary),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: theme.textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
@@ -223,120 +482,381 @@ class _ProfileAvatarCard extends StatelessWidget {
   }
 }
 
-class _ProfileBadge extends StatelessWidget {
-  final String text;
-  final Color color;
-  const _ProfileBadge(this.text, this.color);
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-    decoration: BoxDecoration(
-      color: color.withValues(alpha: 0.12),
-      borderRadius: BorderRadius.circular(6),
-    ),
-    child: Text(
-      text,
-      style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w700),
-    ),
-  );
-}
-
-// ── 정보 섹션 ─────────────────────────────────────────────────────
-class _InfoTileData {
-  final IconData icon;
+class _HeroStat {
   final String label;
   final String value;
-  final VoidCallback? onTap;
-  const _InfoTileData({
-    required this.icon,
-    required this.label,
-    required this.value,
-    this.onTap,
-  });
+
+  const _HeroStat({required this.label, required this.value});
 }
 
-class _InfoSection extends StatelessWidget {
-  final String title;
-  final List<_InfoTileData> tiles;
-  final Widget? trailing;
-  const _InfoSection({required this.title, required this.tiles, this.trailing});
+class _HeroStatCard extends StatelessWidget {
+  final _HeroStat item;
+
+  const _HeroStatCard({required this.item});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
     return Container(
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
+        color: scheme.surface.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: scheme.outlineVariant),
       ),
-      padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            item.label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            item.value,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final Widget child;
+
+  const _SectionCard({
+    required this.title,
+    required this.subtitle,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: theme.textTheme.titleLarge),
+          const SizedBox(height: 6),
+          Text(
+            subtitle,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 18),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool isLast;
+
+  const _DetailTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.isLast = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Column(
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(icon, size: 20, color: scheme.primary),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    value,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        if (!isLast) ...[
+          const SizedBox(height: 16),
+          Divider(color: scheme.outlineVariant),
+          const SizedBox(height: 16),
+        ],
+      ],
+    );
+  }
+}
+
+class _ActionTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback? onTap;
+  final bool isLast;
+
+  const _ActionTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.onTap,
+    this.isLast = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Column(
+      children: [
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(22),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: scheme.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Icon(icon, size: 20, color: scheme.primary),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          subtitle,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (onTap != null)
+                    Icon(Icons.chevron_right_rounded, color: scheme.outline),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (!isLast) ...[
+          const SizedBox(height: 12),
+          Divider(color: scheme.outlineVariant),
+          const SizedBox(height: 12),
+        ],
+      ],
+    );
+  }
+}
+
+class _DangerZone extends StatelessWidget {
+  final VoidCallback onSignOut;
+
+  const _DangerZone({required this.onSignOut});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: scheme.errorContainer.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: scheme.error.withValues(alpha: 0.18)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: scheme.onErrorContainer.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(
+                  Icons.shield_moon_outlined,
+                  color: scheme.onErrorContainer,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
                 child: Text(
-                  title,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
+                  '현재 기기 세션 종료',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: scheme.onErrorContainer,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
-              const Spacer(),
-              ?trailing,
             ],
           ),
-          const SizedBox(height: 4),
-          ...tiles.asMap().entries.map((e) {
-            final isLast = e.key == tiles.length - 1;
-            final t = e.value;
-            return Column(
-              children: [
-                ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 0),
-                  dense: true,
-                  leading: Icon(
-                    t.icon,
-                    size: 20,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                  title: Text(
-                    t.label,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  subtitle: Text(
-                    t.value,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  trailing: t.onTap != null
-                      ? Icon(
-                          Icons.chevron_right,
-                          color: theme.colorScheme.outline,
-                        )
-                      : null,
-                  onTap: t.onTap,
-                ),
-                if (!isLast)
-                  Divider(height: 1, color: theme.colorScheme.outlineVariant),
-              ],
-            );
-          }),
+          const SizedBox(height: 14),
+          Text(
+            '로그아웃하면 이 기기에서만 세션이 종료됩니다. 저장한 시간표와 추천 결과는 유지되며 다시 로그인해 이어서 사용할 수 있습니다.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: scheme.onErrorContainer.withValues(alpha: 0.86),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: const [
+              _SecurityChip(label: '현재 기기 세션 종료'),
+              _SecurityChip(label: '저장 데이터 유지'),
+              _SecurityChip(label: '재로그인 즉시 복귀'),
+            ],
+          ),
+          const SizedBox(height: 18),
+          FilledButton.icon(
+            onPressed: onSignOut,
+            style: FilledButton.styleFrom(
+              backgroundColor: scheme.error,
+              foregroundColor: scheme.onError,
+              minimumSize: const Size.fromHeight(56),
+            ),
+            icon: const Icon(Icons.logout_rounded, size: 18),
+            label: const Text('로그아웃'),
+          ),
         ],
       ),
     );
   }
 }
 
-// ── 프로필 수정 시트 ──────────────────────────────────────────────
+class _SecurityChip extends StatelessWidget {
+  final String label;
+
+  const _SecurityChip({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: scheme.surface.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        label,
+        style: theme.textTheme.labelLarge?.copyWith(
+          color: scheme.onSurface,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _SignOutInfoRow extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _SignOutInfoRow({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: AppTheme.coral),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _EditProfileSheet extends StatefulWidget {
   final User user;
+
   const _EditProfileSheet({required this.user});
 
   @override
@@ -350,12 +870,12 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
   late int _grade;
 
   static const _departments = [
-    '컴퓨터공학',
-    '소프트웨어',
-    '전자공학',
-    '기계공학',
-    '경영학',
-    '경제학',
+    '컴퓨터공학과',
+    '소프트웨어학과',
+    '전자공학과',
+    '기계공학과',
+    '경영학과',
+    '경제학과',
     '기타',
   ];
 
@@ -377,67 +897,72 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
 
   Future<void> _save() async {
     final auth = context.read<AuthService>();
+    final messenger = ScaffoldMessenger.of(context);
+
     await auth.updateProfile(
       name: _name.text.trim(),
       studentId: _studentId.text.trim(),
       department: _department,
       grade: _grade,
     );
+
     if (!mounted) return;
     Navigator.pop(context);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('프로필이 저장되었습니다')));
+    messenger.showSnackBar(const SnackBar(content: Text('프로필이 업데이트되었습니다.')));
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final auth = context.watch<AuthService>();
+
     return Padding(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 8,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+      padding: EdgeInsets.fromLTRB(
+        20,
+        12,
+        20,
+        MediaQuery.viewInsetsOf(context).bottom + 24,
       ),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.outlineVariant,
-                borderRadius: BorderRadius.circular(2),
+            Center(
+              child: Container(
+                width: 44,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(999),
+                ),
               ),
             ),
+            const SizedBox(height: 18),
+            Text('프로필 수정', style: theme.textTheme.headlineSmall),
+            const SizedBox(height: 8),
             Text(
-              '프로필 수정',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
+              '추천과 저장 흐름에 연결되는 기본 정보를 업데이트합니다.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: 16),
-            TextField(
+            const SizedBox(height: 22),
+            AppTextField(
               controller: _name,
-              decoration: const InputDecoration(
-                labelText: '이름',
-                prefixIcon: Icon(Icons.person_outline, size: 20),
-              ),
+              label: '이름',
+              icon: Icons.person_outline_rounded,
             ),
-            const SizedBox(height: 10),
-            TextField(
+            const SizedBox(height: 12),
+            AppTextField(
               controller: _studentId,
+              label: '학번',
+              hint: '예: 20231234',
+              icon: Icons.badge_outlined,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: '학번',
-                prefixIcon: Icon(Icons.badge_outlined, size: 20),
-              ),
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               initialValue: _department,
               decoration: const InputDecoration(
@@ -445,56 +970,60 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
                 prefixIcon: Icon(Icons.school_outlined, size: 20),
               ),
               items: _departments
-                  .map((d) => DropdownMenuItem(value: d, child: Text(d)))
+                  .map(
+                    (department) => DropdownMenuItem(
+                      value: department,
+                      child: Text(department),
+                    ),
+                  )
                   .toList(),
-              onChanged: (v) => setState(() => _department = v ?? '기타'),
+              onChanged: (value) => setState(() => _department = value ?? '기타'),
             ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                Text('학년', style: theme.textTheme.bodyMedium),
-                const Spacer(),
-                SegmentedButton<int>(
-                  segments: [1, 2, 3, 4]
-                      .map((g) => ButtonSegment(value: g, label: Text('$g학년')))
-                      .toList(),
-                  selected: {_grade},
-                  onSelectionChanged: (s) => setState(() => _grade = s.first),
-                  style: const ButtonStyle(
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ),
-              ],
+            Text('학년', style: theme.textTheme.bodyMedium),
+            const SizedBox(height: 10),
+            SegmentedButton<int>(
+              segments: [1, 2, 3, 4]
+                  .map(
+                    (grade) =>
+                        ButtonSegment(value: grade, label: Text('$grade학년')),
+                  )
+                  .toList(),
+              selected: {_grade},
+              onSelectionChanged: (selection) {
+                setState(() => _grade = selection.first);
+              },
+              showSelectedIcon: false,
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
             Row(
               children: [
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () => Navigator.pop(context),
                     style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
+                      minimumSize: const Size.fromHeight(54),
                     ),
                     child: const Text('취소'),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 Expanded(
                   child: FilledButton(
                     onPressed: auth.isLoading ? null : _save,
                     style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
+                      minimumSize: const Size.fromHeight(54),
                     ),
                     child: auth.isLoading
                         ? const SizedBox(
-                            width: 18,
-                            height: 18,
+                            width: 20,
+                            height: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               color: Colors.white,
                             ),
                           )
-                        : const Text('저장'),
+                        : const Text('변경사항 저장'),
                   ),
                 ),
               ],
@@ -504,4 +1033,10 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
       ),
     );
   }
+}
+
+String _formatJoinedAt(DateTime dateTime) {
+  final year = dateTime.year.toString();
+  final month = dateTime.month.toString().padLeft(2, '0');
+  return '$year.$month';
 }

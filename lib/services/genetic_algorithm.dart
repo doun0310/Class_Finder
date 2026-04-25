@@ -183,8 +183,8 @@ class _RunConfig {
       stagnationWindow: max(12, maxGenerations ~/ 4),
       tournamentSize: 4,
       parentPoolSize: max(18, populationSize ~/ 3),
-      refinePoolSize: min(18, max(10, scaledElectives ~/ 2)),
-      refinePasses: 2,
+      refinePoolSize: min(14, max(8, scaledElectives ~/ 3)),
+      refinePasses: 1,
     );
   }
 }
@@ -220,6 +220,7 @@ class _RunContext {
   final Map<String, double> utilityById;
   final Map<String, _CourseStats> courseStats;
   final Map<String, Set<String>> conflictsByCourseId;
+  final List<Course> refineCandidates;
   final Map<String, _CachedEvaluation> evaluationCache = {};
 
   _RunContext({
@@ -228,6 +229,7 @@ class _RunContext {
     required this.utilityById,
     required this.courseStats,
     required this.conflictsByCourseId,
+    required this.refineCandidates,
   });
 }
 
@@ -260,12 +262,17 @@ class GeneticAlgorithmService {
       return [];
     }
 
+    final config = _RunConfig.fromElectiveCount(electives.length);
+
     _context = _RunContext(
       preference: preference,
-      config: _RunConfig.fromElectiveCount(electives.length),
+      config: config,
       utilityById: utilityById,
       courseStats: _buildCourseStats(eligible, preference, utilityById),
       conflictsByCourseId: _buildConflictLookup(eligible),
+      refineCandidates: electives
+          .take(config.refinePoolSize)
+          .toList(growable: false),
     );
 
     var population = _seedPopulation(required, electives, preference);
@@ -316,7 +323,7 @@ class GeneticAlgorithmService {
           preference,
         );
         child = _mutate(child, required, electives, preference);
-        child = _refine(child, required, electives, preference);
+        child = _refine(child, required, preference);
         nextGeneration.add(child);
       }
 
@@ -350,25 +357,21 @@ class GeneticAlgorithmService {
     required bool exploratory,
   }) {
     final selected = <Course>[...required];
-    final rankedPool = [...electives]
-      ..sort((a, b) {
-        final aScore =
-            _courseUtility(a, preference) +
-            _random.nextDouble() * (exploratory ? 0.8 : 0.25);
-        final bScore =
-            _courseUtility(b, preference) +
-            _random.nextDouble() * (exploratory ? 0.8 : 0.25);
-        return bScore.compareTo(aScore);
-      });
+    final rankedPool = _candidateOrder(electives, exploratory: exploratory);
+    var currentCredits = _totalCredits(selected);
 
     final creditFloor = _creditFloor(preference.maxCredits);
 
     for (final candidate in rankedPool) {
-      if (!_canAddCourse(selected, candidate, preference)) {
+      if (!_canAddCourse(
+        selected,
+        candidate,
+        preference,
+        currentCredits: currentCredits,
+      )) {
         continue;
       }
 
-      final currentCredits = _totalCredits(selected);
       final mustFillCredits = currentCredits < creditFloor;
       var acceptance = mustFillCredits ? 0.58 : 0.26;
       acceptance += _courseUtility(candidate, preference) * 0.42;
@@ -383,11 +386,12 @@ class GeneticAlgorithmService {
 
       if (_random.nextDouble() <= acceptance.clamp(0.08, 0.96)) {
         selected.add(candidate);
+        currentCredits += candidate.credit;
       }
     }
 
     final base = _evaluate(selected, preference);
-    return _refine(base, required, electives, preference);
+    return _refine(base, required, preference);
   }
 
   Timetable _selectParent(List<Timetable> population) {
@@ -440,7 +444,7 @@ class GeneticAlgorithmService {
     }
 
     final child = _evaluate(selected, preference);
-    return _refine(child, required, electives, preference);
+    return _refine(child, required, preference);
   }
 
   Timetable _mutate(
@@ -500,7 +504,6 @@ class GeneticAlgorithmService {
   Timetable _refine(
     Timetable seed,
     List<Course> required,
-    List<Course> electives,
     UserPreference preference,
   ) {
     var best = _evaluate(
@@ -508,9 +511,7 @@ class GeneticAlgorithmService {
       preference,
     );
     final fixedIds = required.map((course) => course.id).toSet();
-    final candidatePool = electives
-        .take(_context.config.refinePoolSize)
-        .toList();
+    final candidatePool = _context.refineCandidates;
 
     bool improved = true;
     int pass = 0;
@@ -962,6 +963,7 @@ class GeneticAlgorithmService {
   ) {
     final fixedIds = required.map((course) => course.id).toSet();
     final rebuilt = <Course>[...required];
+    var currentCredits = _totalCredits(rebuilt);
     final others =
         courses.where((course) => !fixedIds.contains(course.id)).toList()..sort(
           (a, b) => _courseUtility(
@@ -971,8 +973,14 @@ class GeneticAlgorithmService {
         );
 
     for (final course in others) {
-      if (_canAddCourse(rebuilt, course, preference)) {
+      if (_canAddCourse(
+        rebuilt,
+        course,
+        preference,
+        currentCredits: currentCredits,
+      )) {
         rebuilt.add(course);
+        currentCredits += course.credit;
       }
     }
 
@@ -982,18 +990,51 @@ class GeneticAlgorithmService {
   bool _canAddCourse(
     List<Course> courses,
     Course candidate,
-    UserPreference preference,
-  ) {
+    UserPreference preference, {
+    int? currentCredits,
+  }) {
     if (courses.any((course) => course.id == candidate.id)) {
       return false;
     }
     if (_hasSameCourse(courses, candidate)) {
       return false;
     }
-    if (_totalCredits(courses) + candidate.credit > preference.maxCredits) {
+    if ((currentCredits ?? _totalCredits(courses)) + candidate.credit >
+        preference.maxCredits) {
       return false;
     }
     return !_conflictsWithAny(courses, candidate);
+  }
+
+  List<Course> _candidateOrder(
+    List<Course> electives, {
+    required bool exploratory,
+  }) {
+    final ordered = List<Course>.of(electives);
+    if (ordered.length < 2) {
+      return ordered;
+    }
+
+    final baseWindow = exploratory ? 18 : 7;
+    final maxWindow = exploratory ? 42 : 16;
+
+    for (int index = 0; index < ordered.length; index++) {
+      final dynamicWindow = min(
+        maxWindow,
+        baseWindow + (index ~/ (exploratory ? 3 : 5)),
+      );
+      final windowSize = min(ordered.length - index, dynamicWindow);
+      if (windowSize <= 1) {
+        continue;
+      }
+
+      final swapIndex = index + _random.nextInt(windowSize);
+      final current = ordered[index];
+      ordered[index] = ordered[swapIndex];
+      ordered[swapIndex] = current;
+    }
+
+    return ordered;
   }
 
   bool _wouldCreateLargeGap(List<Course> courses, Course candidate) {

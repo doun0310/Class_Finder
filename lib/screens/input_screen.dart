@@ -344,7 +344,11 @@ class _InputScreenState extends State<InputScreen> {
                 ),
               ),
             ),
-            if (state.isLoading) const MatchingLoadingOverlay(),
+            if (state.isLoading)
+              MatchingLoadingOverlay(
+                expectedDuration: state.estimatedMatchingDuration,
+                recentDuration: state.lastMatchingDuration,
+              ),
           ],
         );
       },
