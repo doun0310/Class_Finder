@@ -17,7 +17,7 @@ class _GAPayload {
 }
 
 class AppState extends ChangeNotifier {
-  UserPreference _preference = const UserPreference(major: '컴퓨터공학과', grade: 2);
+  UserPreference _preference = const UserPreference(major: '컴퓨터공학부', grade: 2);
   List<Timetable> _results = [];
   bool _isLoading = false;
   int _selectedResultIndex = 0;
@@ -36,18 +36,6 @@ class AppState extends ChangeNotifier {
 
   void updatePref(UserPreference preference) {
     _preference = preference;
-    notifyListeners();
-  }
-
-  void toggleRequiredCourse(String courseId) {
-    final ids = List<String>.from(_preference.requiredCourseIds);
-    if (ids.contains(courseId)) {
-      ids.remove(courseId);
-    } else {
-      ids.add(courseId);
-    }
-
-    _preference = _preference.copyWith(requiredCourseIds: ids);
     notifyListeners();
   }
 
@@ -83,19 +71,21 @@ class AppState extends ChangeNotifier {
   ) {
     final eligibleCount = courses
         .where(
-          (course) => course.grade == 0 || course.grade <= preference.grade,
+          (course) =>
+              course.hasTimeSlots &&
+              (course.grade == 0 || course.grade <= preference.grade),
         )
         .length;
-    final requiredCount = preference.requiredCourseIds.length;
+    final fixedCount = _fixedCourseCount(courses, preference);
     final heuristicMs =
         72 +
         eligibleCount * 1.35 +
         preference.maxCredits * 1.7 +
-        requiredCount * 7 +
+        fixedCount * 7 +
         preference.preferredFreeDays.length * 10 +
         (preference.requireLunchBreak ? 14 : 0) +
         (preference.preferMorning ? 10 : 0);
-    final bucket = _timingBucket(eligibleCount, preference);
+    final bucket = _timingBucket(courses, eligibleCount, preference);
     final historyMs = _timingHistoryMs[bucket];
     final estimatedMs = historyMs == null
         ? heuristicMs
@@ -111,10 +101,12 @@ class AppState extends ChangeNotifier {
   ) {
     final eligibleCount = courses
         .where(
-          (course) => course.grade == 0 || course.grade <= preference.grade,
+          (course) =>
+              course.hasTimeSlots &&
+              (course.grade == 0 || course.grade <= preference.grade),
         )
         .length;
-    final bucket = _timingBucket(eligibleCount, preference);
+    final bucket = _timingBucket(courses, eligibleCount, preference);
     final currentMs = duration.inMilliseconds.toDouble();
     final previousMs = _timingHistoryMs[bucket];
 
@@ -127,15 +119,32 @@ class AppState extends ChangeNotifier {
     );
   }
 
-  String _timingBucket(int eligibleCount, UserPreference preference) {
+  String _timingBucket(
+    List<Course> courses,
+    int eligibleCount,
+    UserPreference preference,
+  ) {
     return [
       preference.grade,
       eligibleCount ~/ 12,
       preference.maxCredits ~/ 3,
-      preference.requiredCourseIds.length ~/ 2,
+      _fixedCourseCount(courses, preference) ~/ 2,
       preference.preferredFreeDays.length,
       preference.preferMorning ? 1 : 0,
       preference.requireLunchBreak ? 1 : 0,
     ].join('|');
+  }
+
+  int _fixedCourseCount(List<Course> courses, UserPreference preference) {
+    final automaticRequiredCount = courses
+        .where(
+          (course) =>
+              course.category == CourseCategory.majorRequired &&
+              course.grade == preference.grade,
+        )
+        .map((course) => course.courseCode)
+        .toSet()
+        .length;
+    return automaticRequiredCount + preference.selectedCourseIds.length;
   }
 }

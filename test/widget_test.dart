@@ -2,6 +2,7 @@ import 'package:class_finder/main.dart';
 import 'package:class_finder/services/app_state.dart';
 import 'package:class_finder/services/auth_repository.dart';
 import 'package:class_finder/services/auth_service.dart';
+import 'package:class_finder/services/social_auth_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
@@ -11,7 +12,10 @@ void main() {
       MultiProvider(
         providers: [
           ChangeNotifierProvider(
-            create: (_) => AuthService(LocalAuthRepository()),
+            create: (_) => AuthService(
+              LocalAuthRepository(),
+              socialAuth: _FakeSocialAuthService(),
+            ),
           ),
           ChangeNotifierProvider(create: (_) => AppState()),
         ],
@@ -23,4 +27,11 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1600));
     await tester.pump();
   });
+}
+
+class _FakeSocialAuthService implements SocialAuthGateway {
+  @override
+  Future<SocialAuthPayload> authenticate(AuthProvider provider) async {
+    return SocialAuthPayload(provider: provider);
+  }
 }

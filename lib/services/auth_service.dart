@@ -1,15 +1,18 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../models/user.dart';
 import 'auth_repository.dart';
+import 'social_auth_service.dart';
 
 enum AuthStatus { unknown, authenticated, unauthenticated }
 
-/// 인증 상태 관리 (Provider로 앱 전역 공유)
 class AuthService extends ChangeNotifier {
   final AuthRepository _repo;
+  final SocialAuthGateway _socialAuth;
 
-  AuthService(this._repo);
+  AuthService(this._repo, {required SocialAuthGateway socialAuth})
+    : _socialAuth = socialAuth;
 
   User? _user;
   String? _token;
@@ -31,13 +34,15 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
     try {
       final user = await _repo.getCurrentUser();
-      final p = await SharedPreferences.getInstance();
-      final token = p.getString('auth.token');
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth.token');
       if (user != null && token != null) {
         _user = user;
         _token = token;
         _status = AuthStatus.authenticated;
       } else {
+        _user = null;
+        _token = null;
         _status = AuthStatus.unauthenticated;
       }
     } finally {
@@ -47,52 +52,37 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<bool> signIn({required String email, required String password}) async {
-    _isLoading = true;
-    _lastError = null;
-    _lastErrorCode = null;
-    notifyListeners();
+    _beginLoading();
     try {
       final result = await _repo.signIn(email: email, password: password);
-      _user = result.user;
-      _token = result.token;
-      _status = AuthStatus.authenticated;
+      _applySession(result);
       return true;
-    } on AuthException catch (e) {
-      _lastErrorCode = e.code;
-      _lastError = e.message;
+    } on AuthException catch (error) {
+      _captureAuthError(error);
       return false;
-    } catch (e) {
-      _lastErrorCode = AuthErrorCode.unknown;
-      _lastError = '로그인 중 오류가 발생했습니다.';
+    } catch (_) {
+      _captureUnknownError('로그인 중 오류가 발생했습니다.');
       return false;
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      _finishLoading();
     }
   }
 
   Future<bool> signInWithProvider(AuthProvider provider) async {
-    _isLoading = true;
-    _lastError = null;
-    _lastErrorCode = null;
-    notifyListeners();
+    _beginLoading();
     try {
-      final result = await _repo.signInWithProvider(provider);
-      _user = result.user;
-      _token = result.token;
-      _status = AuthStatus.authenticated;
+      final payload = await _socialAuth.authenticate(provider);
+      final result = await _repo.signInWithProvider(provider, payload: payload);
+      _applySession(result);
       return true;
-    } on AuthException catch (e) {
-      _lastErrorCode = e.code;
-      _lastError = e.message;
+    } on AuthException catch (error) {
+      _captureAuthError(error);
       return false;
-    } catch (e) {
-      _lastErrorCode = AuthErrorCode.unknown;
-      _lastError = '소셜 로그인 중 오류가 발생했습니다.';
+    } catch (_) {
+      _captureUnknownError('${provider.label} 로그인 중 오류가 발생했습니다.');
       return false;
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      _finishLoading();
     }
   }
 
@@ -104,10 +94,7 @@ class AuthService extends ChangeNotifier {
     required String department,
     required int grade,
   }) async {
-    _isLoading = true;
-    _lastError = null;
-    _lastErrorCode = null;
-    notifyListeners();
+    _beginLoading();
     try {
       final result = await _repo.signUp(
         email: email,
@@ -117,42 +104,31 @@ class AuthService extends ChangeNotifier {
         department: department,
         grade: grade,
       );
-      _user = result.user;
-      _token = result.token;
-      _status = AuthStatus.authenticated;
+      _applySession(result);
       return true;
-    } on AuthException catch (e) {
-      _lastErrorCode = e.code;
-      _lastError = e.message;
+    } on AuthException catch (error) {
+      _captureAuthError(error);
       return false;
-    } catch (e) {
-      _lastErrorCode = AuthErrorCode.unknown;
-      _lastError = '회원가입 중 오류가 발생했습니다.';
+    } catch (_) {
+      _captureUnknownError('회원가입 중 오류가 발생했습니다.');
       return false;
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      _finishLoading();
     }
   }
 
   Future<String?> requestPasswordReset({required String email}) async {
-    _isLoading = true;
-    _lastError = null;
-    _lastErrorCode = null;
-    notifyListeners();
+    _beginLoading();
     try {
       return await _repo.requestPasswordReset(email: email);
-    } on AuthException catch (e) {
-      _lastErrorCode = e.code;
-      _lastError = e.message;
+    } on AuthException catch (error) {
+      _captureAuthError(error);
       return null;
-    } catch (e) {
-      _lastErrorCode = AuthErrorCode.unknown;
-      _lastError = '비밀번호 재설정 요청 중 오류가 발생했습니다.';
+    } catch (_) {
+      _captureUnknownError('비밀번호 재설정 요청 중 오류가 발생했습니다.');
       return null;
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      _finishLoading();
     }
   }
 
@@ -172,7 +148,10 @@ class AuthService extends ChangeNotifier {
     String? department,
     int? grade,
   }) async {
-    if (_user == null) return;
+    if (_user == null) {
+      return;
+    }
+
     _isLoading = true;
     notifyListeners();
     try {
@@ -195,5 +174,33 @@ class AuthService extends ChangeNotifier {
     _lastError = null;
     _lastErrorCode = null;
     notifyListeners();
+  }
+
+  void _beginLoading() {
+    _isLoading = true;
+    _lastError = null;
+    _lastErrorCode = null;
+    notifyListeners();
+  }
+
+  void _finishLoading() {
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  void _applySession(AuthResult result) {
+    _user = result.user;
+    _token = result.token;
+    _status = AuthStatus.authenticated;
+  }
+
+  void _captureAuthError(AuthException error) {
+    _lastErrorCode = error.code;
+    _lastError = error.message;
+  }
+
+  void _captureUnknownError(String message) {
+    _lastErrorCode = AuthErrorCode.unknown;
+    _lastError = message;
   }
 }

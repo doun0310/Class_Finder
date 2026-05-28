@@ -16,7 +16,6 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final _repository = TimetableRepository();
   List<SavedTimetable> _saved = [];
   bool _loading = true;
 
@@ -29,9 +28,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _load() async {
     setState(() => _loading = true);
     final user = context.read<AuthService>().user;
-    if (user != null) {
-      _saved = await _repository.listByUser(user.id);
-    } else {
+    final repository = context.read<TimetableRepository>();
+
+    try {
+      if (user != null) {
+        _saved = await repository.listByUser(user);
+      } else {
+        _saved = [];
+      }
+    } on TimetableRepositoryException catch (error) {
+      _saved = [];
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } catch (_) {
       _saved = [];
     }
 
@@ -140,10 +152,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     final saved = _saved[index];
                     return _SavedTimetableCard(
                       saved: saved,
-                      onTap: () => Navigator.pushNamed(
-                        context,
-                        '/saved',
-                      ).then((_) => _load()),
+                      onTap: () =>
+                          Navigator.pushNamed(context, '/saved').then((_) => _load()),
                     );
                   },
                   separatorBuilder: (context, index) =>

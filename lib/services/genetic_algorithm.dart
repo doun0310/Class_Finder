@@ -4,90 +4,41 @@ import '../models/course.dart';
 import '../models/user_preference.dart';
 
 const _scheduleStartHour = 9;
+const _weekdayCount = 5;
 
 class Timetable {
   final List<Course> courses;
   final double score;
   final Map<String, double> scoreBreakdown;
+  late final _TimetableSummary _summary = _TimetableSummary.fromCourses(
+    courses,
+  );
 
-  const Timetable({
+  Timetable({
     required this.courses,
     required this.score,
     this.scoreBreakdown = const {},
   });
 
-  int get totalCredits => courses.fold(0, (sum, course) => sum + course.credit);
+  Timetable.empty() : courses = const [], score = 0, scoreBreakdown = const {};
 
-  int get totalHours =>
-      courses.fold(0, (sum, course) => sum + course.totalHours);
+  int get totalCredits => _summary.totalCredits;
 
-  double get averageRating => courses.isEmpty
-      ? 0
-      : courses.fold(0.0, (sum, course) => sum + course.rating) /
-            courses.length;
+  int get totalHours => _summary.totalHours;
 
-  double get averageDifficulty => courses.isEmpty
-      ? 0
-      : courses.fold(0.0, (sum, course) => sum + course.difficulty) /
-            courses.length;
+  double get averageRating => _summary.averageRating;
 
-  int get activeDayCount => weekdays
-      .where((day) => courses.any((course) => course.occursOn(day)))
-      .length;
+  double get averageDifficulty => _summary.averageDifficulty;
 
-  int get freeDays => weekdays
-      .where((day) => courses.every((course) => !course.occursOn(day)))
-      .length;
+  int get activeDayCount => _summary.activeDayCount;
 
-  int get earliestStartHour {
-    if (courses.isEmpty) {
-      return 0;
-    }
+  int get freeDays => _summary.freeDays;
 
-    return courses
-        .expand((course) => course.timeSlots)
-        .map((slot) => slot.startHour)
-        .reduce((value, element) => value < element ? value : element);
-  }
+  int get earliestStartHour => _summary.earliestStartHour;
 
-  int get latestEndHour {
-    if (courses.isEmpty) {
-      return 0;
-    }
+  int get latestEndHour => _summary.latestEndHour;
 
-    return courses
-        .expand((course) => course.timeSlots)
-        .map((slot) => slot.endHour)
-        .reduce((value, element) => value > element ? value : element);
-  }
-
-  double get averageGapHours {
-    double totalGap = 0;
-    int activeDays = 0;
-
-    for (final day in weekdays) {
-      final daySlots =
-          courses
-              .expand((course) => course.timeSlots)
-              .where((slot) => slot.day == day)
-              .toList()
-            ..sort((a, b) => a.startHour.compareTo(b.startHour));
-
-      if (daySlots.isEmpty) {
-        continue;
-      }
-
-      activeDays++;
-      final occupiedHours = daySlots.fold<int>(
-        0,
-        (sum, slot) => sum + slot.durationHours,
-      );
-      final span = daySlots.last.endHour - daySlots.first.startHour;
-      totalGap += max(0, span - occupiedHours);
-    }
-
-    return activeDays == 0 ? 0 : totalGap / activeDays;
-  }
+  double get averageGapHours => _summary.averageGapHours;
 
   double get hardScore => scoreBreakdown['hard'] ?? 1.0;
   double get conflictScore => scoreBreakdown['conflict'] ?? 1.0;
@@ -109,36 +60,155 @@ class Timetable {
 
   bool get hasLunchBreak => lunchScore >= 0.999;
 
-  int get consecutiveMax {
+  int get consecutiveMax => _summary.consecutiveMax;
+}
+
+class _TimetableSummary {
+  final int totalCredits;
+  final int totalHours;
+  final double averageRating;
+  final double averageDifficulty;
+  final int activeDayCount;
+  final int freeDays;
+  final int earliestStartHour;
+  final int latestEndHour;
+  final double averageGapHours;
+  final int consecutiveMax;
+
+  const _TimetableSummary({
+    required this.totalCredits,
+    required this.totalHours,
+    required this.averageRating,
+    required this.averageDifficulty,
+    required this.activeDayCount,
+    required this.freeDays,
+    required this.earliestStartHour,
+    required this.latestEndHour,
+    required this.averageGapHours,
+    required this.consecutiveMax,
+  });
+
+  const _TimetableSummary.empty()
+    : totalCredits = 0,
+      totalHours = 0,
+      averageRating = 0,
+      averageDifficulty = 0,
+      activeDayCount = 0,
+      freeDays = _weekdayCount,
+      earliestStartHour = 0,
+      latestEndHour = 0,
+      averageGapHours = 0,
+      consecutiveMax = 0;
+
+  factory _TimetableSummary.fromCourses(List<Course> courses) {
+    if (courses.isEmpty) {
+      return const _TimetableSummary.empty();
+    }
+
+    final dayMasks = List<int>.filled(weekdays.length, 0);
+    int totalCredits = 0;
+    int totalHours = 0;
+    double totalRating = 0;
+    double totalDifficulty = 0;
+    int earliestStartHour = 24;
+    int latestEndHour = 0;
+
+    for (final course in courses) {
+      totalCredits += course.credit;
+      totalHours += course.totalHours;
+      totalRating += course.rating;
+      totalDifficulty += course.difficulty;
+
+      for (final slot in course.timeSlots) {
+        final dayIndex = weekdays.indexOf(slot.day);
+        if (dayIndex < 0) {
+          continue;
+        }
+        dayMasks[dayIndex] |= _summaryHourMask(slot.startHour, slot.endHour);
+        earliestStartHour = min(earliestStartHour, slot.startHour);
+        latestEndHour = max(latestEndHour, slot.endHour);
+      }
+    }
+
+    final activeDayCount = dayMasks.where((mask) => mask != 0).length;
+    double totalGap = 0;
+
+    for (final mask in dayMasks) {
+      if (mask == 0) {
+        continue;
+      }
+      totalGap += max(0, _summaryMaskSpan(mask) - _summaryBitCount(mask));
+    }
+
+    return _TimetableSummary(
+      totalCredits: totalCredits,
+      totalHours: totalHours,
+      averageRating: totalRating / courses.length,
+      averageDifficulty: totalDifficulty / courses.length,
+      activeDayCount: activeDayCount,
+      freeDays: weekdays.length - activeDayCount,
+      earliestStartHour: earliestStartHour == 24 ? 0 : earliestStartHour,
+      latestEndHour: latestEndHour,
+      averageGapHours: activeDayCount == 0 ? 0 : totalGap / activeDayCount,
+      consecutiveMax: _summaryConsecutiveMax(dayMasks),
+    );
+  }
+
+  static int _summaryHourMask(int startHour, int endHour) {
+    int mask = 0;
+    for (int hour = startHour; hour < endHour; hour++) {
+      mask |= 1 << (hour - _scheduleStartHour);
+    }
+    return mask;
+  }
+
+  static int _summaryBitCount(int value) {
+    int count = 0;
+    int current = value;
+    while (current != 0) {
+      current &= current - 1;
+      count++;
+    }
+    return count;
+  }
+
+  static int _summaryMaskSpan(int mask) {
+    int startBit = 0;
+    while (((mask >> startBit) & 1) == 0) {
+      startBit++;
+    }
+
+    int endBit = 31;
+    while (((mask >> endBit) & 1) == 0) {
+      endBit--;
+    }
+
+    return endBit - startBit + 1;
+  }
+
+  static int _summaryConsecutiveMax(List<int> dayMasks) {
     int maxStreak = 0;
 
-    for (final day in weekdays) {
-      final hours =
-          courses
-              .expand((course) => course.timeSlots)
-              .where((slot) => slot.day == day)
-              .expand(
-                (slot) => List.generate(
-                  slot.durationHours,
-                  (i) => slot.startHour + i,
-                ),
-              )
-              .toSet()
-              .toList()
-            ..sort();
+    for (final mask in dayMasks) {
+      if (mask == 0) {
+        continue;
+      }
 
+      int currentMask = mask;
       int streak = 0;
       int best = 0;
-      for (int i = 0; i < hours.length; i++) {
-        streak = (i > 0 && hours[i] == hours[i - 1] + 1) ? streak + 1 : 1;
-        if (streak > best) {
-          best = streak;
+      while (currentMask != 0) {
+        if ((currentMask & 1) == 1) {
+          streak++;
+          if (streak > best) {
+            best = streak;
+          }
+        } else {
+          streak = 0;
         }
+        currentMask >>= 1;
       }
-
-      if (best > maxStreak) {
-        maxStreak = best;
-      }
+      maxStreak = max(maxStreak, best);
     }
 
     return maxStreak;
@@ -244,21 +314,48 @@ class GeneticAlgorithmService {
   List<Timetable> run(List<Course> allCourses, UserPreference preference) {
     final eligible = allCourses
         .where(
-          (course) => course.grade == 0 || course.grade <= preference.grade,
+          (course) =>
+              course.hasTimeSlots &&
+              (course.grade == 0 || course.grade <= preference.grade),
         )
         .toList();
     final utilityById = _buildUtilityById(eligible, preference);
-    final required = _resolveRequiredCourses(
+    final selectedCourses = _resolveSelectedCourses(
       eligible,
-      preference.requiredCourseIds.toSet(),
+      preference.selectedCourseIds.toSet(),
       utilityById,
     );
-    final fixedIds = required.map((course) => course.id).toSet();
+    if (selectedCourses == null) {
+      return [];
+    }
+
+    final automaticRequiredCourses = _resolveAutomaticRequiredCourses(
+      eligible,
+      selectedCourses,
+      utilityById,
+      preference,
+    );
+    if (automaticRequiredCourses == null) {
+      return [];
+    }
+
+    final fixedCourses = [...selectedCourses, ...automaticRequiredCourses];
+    final fixedIds = fixedCourses.map((course) => course.id).toSet();
+    final fixedCourseCodes = fixedCourses
+        .map((course) => course.courseCode)
+        .toSet();
     final electives =
-        eligible.where((course) => !fixedIds.contains(course.id)).toList()
+        eligible
+            .where(
+              (course) =>
+                  !fixedIds.contains(course.id) &&
+                  !fixedCourseCodes.contains(course.courseCode) &&
+                  course.category != CourseCategory.majorRequired,
+            )
+            .toList()
           ..sort((a, b) => utilityById[b.id]!.compareTo(utilityById[a.id]!));
 
-    if (eligible.isEmpty || (required.isEmpty && electives.isEmpty)) {
+    if (eligible.isEmpty || (fixedCourses.isEmpty && electives.isEmpty)) {
       return [];
     }
 
@@ -275,7 +372,7 @@ class GeneticAlgorithmService {
           .toList(growable: false),
     );
 
-    var population = _seedPopulation(required, electives, preference);
+    var population = _seedPopulation(fixedCourses, electives, preference);
     double bestScore = -1;
     int stagnantGenerations = 0;
 
@@ -304,7 +401,7 @@ class GeneticAlgorithmService {
         ...List.generate(
           _context.config.immigrantCount,
           (index) => _buildCandidate(
-            required,
+            fixedCourses,
             electives,
             preference,
             exploratory: index.isEven,
@@ -318,12 +415,12 @@ class GeneticAlgorithmService {
         var child = _crossover(
           parentA,
           parentB,
-          required,
+          fixedCourses,
           electives,
           preference,
         );
-        child = _mutate(child, required, electives, preference);
-        child = _refine(child, required, preference);
+        child = _mutate(child, fixedCourses, electives, preference);
+        child = _refine(child, fixedCourses, preference);
         nextGeneration.add(child);
       }
 
@@ -335,14 +432,14 @@ class GeneticAlgorithmService {
   }
 
   List<Timetable> _seedPopulation(
-    List<Course> required,
+    List<Course> fixedCourses,
     List<Course> electives,
     UserPreference preference,
   ) {
     return List.generate(
       _context.config.populationSize,
       (index) => _buildCandidate(
-        required,
+        fixedCourses,
         electives,
         preference,
         exploratory: index % 3 == 0,
@@ -351,12 +448,12 @@ class GeneticAlgorithmService {
   }
 
   Timetable _buildCandidate(
-    List<Course> required,
+    List<Course> fixedCourses,
     List<Course> electives,
     UserPreference preference, {
     required bool exploratory,
   }) {
-    final selected = <Course>[...required];
+    final selected = <Course>[...fixedCourses];
     final rankedPool = _candidateOrder(electives, exploratory: exploratory);
     var currentCredits = _totalCredits(selected);
 
@@ -391,7 +488,7 @@ class GeneticAlgorithmService {
     }
 
     final base = _evaluate(selected, preference);
-    return _refine(base, required, preference);
+    return _refine(base, fixedCourses, preference);
   }
 
   Timetable _selectParent(List<Timetable> population) {
@@ -414,12 +511,13 @@ class GeneticAlgorithmService {
   Timetable _crossover(
     Timetable parentA,
     Timetable parentB,
-    List<Course> required,
+    List<Course> fixedCourses,
     List<Course> electives,
     UserPreference preference,
   ) {
-    final fixedIds = required.map((course) => course.id).toSet();
-    final selected = <Course>[...required];
+    final fixedIds = fixedCourses.map((course) => course.id).toSet();
+    final selected = <Course>[...fixedCourses];
+    var currentCredits = _totalCredits(selected);
     final inherited =
         {
           for (final course in [...parentA.courses, ...parentB.courses])
@@ -433,23 +531,28 @@ class GeneticAlgorithmService {
         });
 
     for (final course in inherited) {
-      final inheritChance =
-          _totalCredits(selected) < _creditFloor(preference.maxCredits)
+      final inheritChance = currentCredits < _creditFloor(preference.maxCredits)
           ? 0.8
           : 0.55;
       if (_random.nextDouble() <= inheritChance &&
-          _canAddCourse(selected, course, preference)) {
+          _canAddCourse(
+            selected,
+            course,
+            preference,
+            currentCredits: currentCredits,
+          )) {
         selected.add(course);
+        currentCredits += course.credit;
       }
     }
 
     final child = _evaluate(selected, preference);
-    return _refine(child, required, preference);
+    return _refine(child, fixedCourses, preference);
   }
 
   Timetable _mutate(
     Timetable timetable,
-    List<Course> required,
+    List<Course> fixedCourses,
     List<Course> electives,
     UserPreference preference,
   ) {
@@ -457,8 +560,9 @@ class GeneticAlgorithmService {
       return timetable;
     }
 
-    final fixedIds = required.map((course) => course.id).toSet();
+    final fixedIds = fixedCourses.map((course) => course.id).toSet();
     final courses = <Course>[...timetable.courses];
+    var currentCredits = timetable.totalCredits;
     final removable =
         courses.where((course) => !fixedIds.contains(course.id)).toList()..sort(
           (a, b) => _courseUtility(
@@ -477,6 +581,7 @@ class GeneticAlgorithmService {
         final maxIndex = max(1, removable.length ~/ 2);
         final removed = removable.removeAt(_random.nextInt(maxIndex));
         courses.removeWhere((course) => course.id == removed.id);
+        currentCredits -= removed.credit;
       }
     }
 
@@ -490,8 +595,14 @@ class GeneticAlgorithmService {
       });
 
     for (final candidate in candidates.take(12)) {
-      if (_canAddCourse(courses, candidate, preference)) {
+      if (_canAddCourse(
+        courses,
+        candidate,
+        preference,
+        currentCredits: currentCredits,
+      )) {
         courses.add(candidate);
+        currentCredits += candidate.credit;
         if (_random.nextBool()) {
           break;
         }
@@ -503,14 +614,14 @@ class GeneticAlgorithmService {
 
   Timetable _refine(
     Timetable seed,
-    List<Course> required,
+    List<Course> fixedCourses,
     UserPreference preference,
   ) {
     var best = _evaluate(
-      _rebuildWithRequired(seed.courses, required, preference),
+      _rebuildWithFixedCourses(seed.courses, fixedCourses, preference),
       preference,
     );
-    final fixedIds = required.map((course) => course.id).toSet();
+    final fixedIds = fixedCourses.map((course) => course.id).toSet();
     final candidatePool = _context.refineCandidates;
 
     bool improved = true;
@@ -519,13 +630,20 @@ class GeneticAlgorithmService {
     while (improved && pass < _context.config.refinePasses) {
       improved = false;
       pass++;
+      final bestIds = best.courses.map((course) => course.id).toSet();
+      final bestCredits = best.totalCredits;
 
       Timetable? bestAddition;
       for (final candidate in candidatePool) {
-        if (best.courses.any((course) => course.id == candidate.id)) {
+        if (bestIds.contains(candidate.id)) {
           continue;
         }
-        if (!_canAddCourse(best.courses, candidate, preference)) {
+        if (!_canAddCourse(
+          best.courses,
+          candidate,
+          preference,
+          currentCredits: bestCredits,
+        )) {
           continue;
         }
 
@@ -549,14 +667,19 @@ class GeneticAlgorithmService {
 
       for (final current in removable) {
         for (final candidate in candidatePool) {
-          if (best.courses.any((course) => course.id == candidate.id)) {
+          if (bestIds.contains(candidate.id)) {
             continue;
           }
 
           final trialCourses = best.courses
               .where((course) => course.id != current.id)
               .toList(growable: true);
-          if (!_canAddCourse(trialCourses, candidate, preference)) {
+          if (!_canAddCourse(
+            trialCourses,
+            candidate,
+            preference,
+            currentCredits: bestCredits - current.credit,
+          )) {
             continue;
           }
 
@@ -598,7 +721,7 @@ class GeneticAlgorithmService {
 
   Timetable _evaluate(List<Course> courses, UserPreference preference) {
     if (courses.isEmpty) {
-      return const Timetable(courses: [], score: 0);
+      return Timetable.empty();
     }
 
     final evaluationKey = _evaluationKey(courses);
@@ -936,13 +1059,13 @@ class GeneticAlgorithmService {
         .clamp(0.0, 1.0);
   }
 
-  List<Course> _resolveRequiredCourses(
+  List<Course>? _resolveSelectedCourses(
     List<Course> eligible,
-    Set<String> requiredCourseIds,
+    Set<String> selectedCourseIds,
     Map<String, double> utilityById,
   ) {
     final selected = eligible
-        .where((course) => requiredCourseIds.contains(course.id))
+        .where((course) => selectedCourseIds.contains(course.id))
         .toList();
     final grouped = <String, List<Course>>{};
 
@@ -950,19 +1073,96 @@ class GeneticAlgorithmService {
       grouped.putIfAbsent(course.courseCode, () => []).add(course);
     }
 
-    return grouped.values.map((courses) {
-      courses.sort((a, b) => utilityById[b.id]!.compareTo(utilityById[a.id]!));
-      return courses.first;
-    }).toList();
+    final resolved =
+        grouped.values.map((courses) {
+            courses.sort(
+              (a, b) => utilityById[b.id]!.compareTo(utilityById[a.id]!),
+            );
+            return courses.first;
+          }).toList()
+          ..sort((a, b) => utilityById[b.id]!.compareTo(utilityById[a.id]!));
+
+    return _coursesCompatible(resolved) ? resolved : null;
   }
 
-  List<Course> _rebuildWithRequired(
-    List<Course> courses,
-    List<Course> required,
+  List<Course>? _resolveAutomaticRequiredCourses(
+    List<Course> eligible,
+    List<Course> lockedCourses,
+    Map<String, double> utilityById,
     UserPreference preference,
   ) {
-    final fixedIds = required.map((course) => course.id).toSet();
-    final rebuilt = <Course>[...required];
+    final lockedCourseCodes = lockedCourses
+        .map((course) => course.courseCode)
+        .toSet();
+    final grouped = <String, List<Course>>{};
+
+    for (final course in eligible) {
+      if (course.category != CourseCategory.majorRequired ||
+          course.grade != preference.grade ||
+          lockedCourseCodes.contains(course.courseCode)) {
+        continue;
+      }
+      grouped.putIfAbsent(course.courseCode, () => []).add(course);
+    }
+
+    if (grouped.isEmpty) {
+      return [];
+    }
+
+    final groups = grouped.values.toList()
+      ..sort((left, right) {
+        final countCompare = left.length.compareTo(right.length);
+        if (countCompare != 0) {
+          return countCompare;
+        }
+        final leftBest = left
+            .map((course) => utilityById[course.id]!)
+            .reduce(max);
+        final rightBest = right
+            .map((course) => utilityById[course.id]!)
+            .reduce(max);
+        return rightBest.compareTo(leftBest);
+      });
+
+    for (final group in groups) {
+      group.sort((a, b) => utilityById[b.id]!.compareTo(utilityById[a.id]!));
+    }
+
+    List<Course>? bestSelection;
+    double bestScore = -1;
+    final current = <Course>[];
+
+    void search(int index, double score) {
+      if (index == groups.length) {
+        if (score > bestScore) {
+          bestScore = score;
+          bestSelection = List<Course>.of(current);
+        }
+        return;
+      }
+
+      for (final course in groups[index]) {
+        if (_conflictsWithCourseList([...lockedCourses, ...current], course)) {
+          continue;
+        }
+
+        current.add(course);
+        search(index + 1, score + utilityById[course.id]!);
+        current.removeLast();
+      }
+    }
+
+    search(0, 0);
+    return bestSelection;
+  }
+
+  List<Course> _rebuildWithFixedCourses(
+    List<Course> courses,
+    List<Course> fixedCourses,
+    UserPreference preference,
+  ) {
+    final fixedIds = fixedCourses.map((course) => course.id).toSet();
+    final rebuilt = <Course>[...fixedCourses];
     var currentCredits = _totalCredits(rebuilt);
     final others =
         courses.where((course) => !fixedIds.contains(course.id)).toList()..sort(
@@ -985,6 +1185,26 @@ class GeneticAlgorithmService {
     }
 
     return rebuilt;
+  }
+
+  bool _coursesCompatible(List<Course> courses) {
+    for (int i = 0; i < courses.length; i++) {
+      for (int j = i + 1; j < courses.length; j++) {
+        if (_coursesConflict(courses[i], courses[j])) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  bool _conflictsWithCourseList(List<Course> courses, Course candidate) {
+    for (final course in courses) {
+      if (_coursesConflict(course, candidate)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   bool _canAddCourse(

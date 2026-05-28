@@ -1,24 +1,45 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import 'screens/auth/login_screen.dart';
 import 'screens/home_shell.dart';
 import 'screens/result_screen.dart';
 import 'screens/saved_timetables_screen.dart';
 import 'screens/splash_screen.dart';
 import 'services/app_state.dart';
+import 'services/api_client.dart';
 import 'services/auth_repository.dart';
 import 'services/auth_service.dart';
+import 'services/social_auth_service.dart';
+import 'services/timetable_repository.dart';
 import 'theme/app_theme.dart';
 
 void main() {
-  // 로컬 구현 주입. 실제 서버 연동 시 RemoteAuthRepository(ApiClient(...))로 교체
-  final authRepo = LocalAuthRepository();
+  const apiBaseUrl = String.fromEnvironment('API_BASE_URL');
+  final authRepo = apiBaseUrl.isEmpty
+      ? LocalAuthRepository()
+      : RemoteAuthRepository(ApiClient(baseUrl: apiBaseUrl));
+  final socialAuth = DeviceSocialAuthService();
 
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthService(authRepo)),
+        ChangeNotifierProvider(
+          create: (_) => AuthService(authRepo, socialAuth: socialAuth),
+        ),
         ChangeNotifierProvider(create: (_) => AppState()),
+        Provider<TimetableRepository>(
+          create: (_) {
+            if (apiBaseUrl.isEmpty) {
+              return const LocalTimetableRepository();
+            }
+
+            return RemoteTimetableRepository(
+              client: ApiClient(baseUrl: apiBaseUrl),
+            );
+          },
+          dispose: (_, repository) => repository.dispose(),
+        ),
       ],
       child: const ClassFinderApp(),
     ),

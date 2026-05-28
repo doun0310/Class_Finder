@@ -7,12 +7,12 @@ class UserPreference {
   final double ratingWeight;
   final double difficultyWeight;
   final bool avoidTeamProject;
-  final List<String> requiredCourseIds;
-  // 시간 제약 (Where-Got-TimeTable 참조)
-  final int minStartHour; // 수업 최소 시작 시간 (9~11)
-  final int maxEndHour; // 수업 최대 종료 시간 (18~21)
-  final List<String> preferredFreeDays; // 공강 희망 요일 (하드 제약)
-  final bool requireLunchBreak; // 점심시간(12~13) 확보
+  final List<String> selectedMajorCourseIds;
+  final List<String> selectedLiberalArtsCourseIds;
+  final int minStartHour;
+  final int maxEndHour;
+  final List<String> preferredFreeDays;
+  final bool requireLunchBreak;
 
   const UserPreference({
     required this.major,
@@ -23,12 +23,18 @@ class UserPreference {
     this.ratingWeight = 0.3,
     this.difficultyWeight = 0.2,
     this.avoidTeamProject = false,
-    this.requiredCourseIds = const [],
+    this.selectedMajorCourseIds = const [],
+    this.selectedLiberalArtsCourseIds = const [],
     this.minStartHour = 9,
     this.maxEndHour = 20,
     this.preferredFreeDays = const [],
     this.requireLunchBreak = false,
   });
+
+  List<String> get selectedCourseIds => [
+    ...selectedMajorCourseIds,
+    ...selectedLiberalArtsCourseIds,
+  ];
 
   UserPreference copyWith({
     String? major,
@@ -39,7 +45,8 @@ class UserPreference {
     double? ratingWeight,
     double? difficultyWeight,
     bool? avoidTeamProject,
-    List<String>? requiredCourseIds,
+    List<String>? selectedMajorCourseIds,
+    List<String>? selectedLiberalArtsCourseIds,
     int? minStartHour,
     int? maxEndHour,
     List<String>? preferredFreeDays,
@@ -53,7 +60,10 @@ class UserPreference {
     ratingWeight: ratingWeight ?? this.ratingWeight,
     difficultyWeight: difficultyWeight ?? this.difficultyWeight,
     avoidTeamProject: avoidTeamProject ?? this.avoidTeamProject,
-    requiredCourseIds: requiredCourseIds ?? this.requiredCourseIds,
+    selectedMajorCourseIds:
+        selectedMajorCourseIds ?? this.selectedMajorCourseIds,
+    selectedLiberalArtsCourseIds:
+        selectedLiberalArtsCourseIds ?? this.selectedLiberalArtsCourseIds,
     minStartHour: minStartHour ?? this.minStartHour,
     maxEndHour: maxEndHour ?? this.maxEndHour,
     preferredFreeDays: preferredFreeDays ?? this.preferredFreeDays,

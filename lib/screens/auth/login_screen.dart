@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -522,23 +524,11 @@ class _SocialButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final visual = _SocialVisuals.from(provider, theme);
-    final badge = Container(
-      width: 34,
-      height: 34,
-      decoration: BoxDecoration(
-        color: visual.badgeColor,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Center(
-        child: Text(
-          visual.badgeText,
-          style: theme.textTheme.titleSmall?.copyWith(
-            color: visual.foregroundColor,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ),
+    final caption = _socialCaption(provider);
+    final badge = Semantics(
+      key: ValueKey('social-logo-${provider.name}'),
+      label: '${provider.label} logo',
+      child: ExcludeSemantics(child: _SocialProviderLogo(provider: provider)),
     );
 
     return OutlinedButton(
@@ -576,7 +566,7 @@ class _SocialButton extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(left: 46),
                   child: Text(
-                    visual.caption,
+                    caption,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodySmall?.copyWith(
@@ -604,7 +594,7 @@ class _SocialButton extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                visual.caption,
+                caption,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodySmall?.copyWith(
@@ -764,6 +754,7 @@ class _LoginErrorState {
   }
 }
 
+// ignore: unused_element
 class _SocialVisuals {
   final String badgeText;
   final String caption;
@@ -777,6 +768,7 @@ class _SocialVisuals {
     required this.foregroundColor,
   });
 
+  // ignore: unused_element
   factory _SocialVisuals.from(AuthProvider provider, ThemeData theme) {
     return switch (provider) {
       AuthProvider.google => const _SocialVisuals(
@@ -803,4 +795,200 @@ class _SocialVisuals {
       ),
     };
   }
+}
+
+String _socialCaption(AuthProvider provider) {
+  return switch (provider) {
+    AuthProvider.google => '추천 복원',
+    AuthProvider.kakao => '간편 시작',
+    AuthProvider.apple => '빠른 로그인',
+  };
+}
+
+class _SocialProviderLogo extends StatelessWidget {
+  final AuthProvider provider;
+
+  const _SocialProviderLogo({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    return switch (provider) {
+      AuthProvider.google => const _GoogleLogoBadge(),
+      AuthProvider.kakao => const _KakaoLogoBadge(),
+      AuthProvider.apple => _AppleLogoBadge(
+        isDark: Theme.of(context).brightness == Brightness.dark,
+      ),
+    };
+  }
+}
+
+class _LogoBadge extends StatelessWidget {
+  final Widget child;
+  final Color backgroundColor;
+  final BorderSide? border;
+
+  const _LogoBadge({
+    required this.child,
+    required this.backgroundColor,
+    this.border,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 34,
+      height: 34,
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(12),
+        border: border == null ? null : Border.fromBorderSide(border!),
+      ),
+      alignment: Alignment.center,
+      child: child,
+    );
+  }
+}
+
+class _GoogleLogoBadge extends StatelessWidget {
+  const _GoogleLogoBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return const _LogoBadge(
+      backgroundColor: Colors.white,
+      border: BorderSide(color: Color(0xFFE5E7EB)),
+      child: SizedBox(
+        width: 18,
+        height: 18,
+        child: CustomPaint(painter: _GoogleLogoPainter()),
+      ),
+    );
+  }
+}
+
+class _KakaoLogoBadge extends StatelessWidget {
+  const _KakaoLogoBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return _LogoBadge(
+      backgroundColor: const Color(0xFFFEE500),
+      child: SizedBox(
+        width: 22,
+        height: 18,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            CustomPaint(
+              size: const Size(22, 18),
+              painter: const _KakaoBubblePainter(),
+            ),
+            Transform.translate(
+              offset: const Offset(0, -1),
+              child: Text(
+                'Talk',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: const Color(0xFFFEE500),
+                  fontSize: 6.8,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.35,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AppleLogoBadge extends StatelessWidget {
+  final bool isDark;
+
+  const _AppleLogoBadge({required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return _LogoBadge(
+      backgroundColor: isDark ? Colors.white : const Color(0xFF111827),
+      child: Icon(
+        Icons.apple,
+        size: 18,
+        color: isDark ? const Color(0xFF111827) : Colors.white,
+      ),
+    );
+  }
+}
+
+class _GoogleLogoPainter extends CustomPainter {
+  const _GoogleLogoPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final strokeWidth = size.width * 0.22;
+    final rect = Rect.fromCircle(
+      center: Offset(size.width / 2, size.height / 2),
+      radius: size.width * 0.36,
+    );
+
+    void drawArc(Color color, double startDegrees, double sweepDegrees) {
+      final paint = Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.round;
+      canvas.drawArc(
+        rect,
+        startDegrees * math.pi / 180,
+        sweepDegrees * math.pi / 180,
+        false,
+        paint,
+      );
+    }
+
+    drawArc(const Color(0xFFEA4335), -40, 86);
+    drawArc(const Color(0xFFFBBC05), 45, 92);
+    drawArc(const Color(0xFF34A853), 137, 98);
+    drawArc(const Color(0xFF4285F4), 232, 128);
+
+    final barPaint = Paint()
+      ..color = const Color(0xFF4285F4)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(
+      Offset(size.width * 0.52, size.height * 0.5),
+      Offset(size.width * 0.84, size.height * 0.5),
+      barPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _KakaoBubblePainter extends CustomPainter {
+  const _KakaoBubblePainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final bubbleRect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(
+        size.width * 0.08,
+        size.height * 0.02,
+        size.width * 0.84,
+        size.height * 0.72,
+      ),
+      Radius.circular(size.height * 0.3),
+    );
+    final path = Path()..addRRect(bubbleRect);
+    path.moveTo(size.width * 0.42, size.height * 0.74);
+    path.lineTo(size.width * 0.5, size.height * 0.98);
+    path.lineTo(size.width * 0.56, size.height * 0.7);
+    path.close();
+    canvas.drawPath(path, Paint()..color = const Color(0xFF191919));
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

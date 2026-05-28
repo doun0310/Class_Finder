@@ -7,8 +7,11 @@ class ApiClient {
   final http.Client _client;
   String? _token;
 
-  ApiClient({required this.baseUrl, http.Client? client})
-    : _client = client ?? http.Client();
+  ApiClient({required String baseUrl, http.Client? client})
+    : baseUrl = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl,
+      _client = client ?? http.Client();
 
   void setToken(String? token) => _token = token;
 
@@ -44,6 +47,19 @@ class ApiClient {
     return _decode(res);
   }
 
+  Future<Map<String, dynamic>> patch(
+    String path,
+    Map<String, dynamic> body, {
+    bool withAuth = true,
+  }) async {
+    final res = await _client.patch(
+      Uri.parse('$baseUrl$path'),
+      headers: _headers(withAuth: withAuth),
+      body: jsonEncode(body),
+    );
+    return _decode(res);
+  }
+
   Future<void> delete(String path, {bool withAuth = true}) async {
     final res = await _client.delete(
       Uri.parse('$baseUrl$path'),
@@ -65,7 +81,12 @@ class ApiClient {
   String _errorMessage(http.Response res) {
     try {
       final body = jsonDecode(res.body);
-      if (body is Map && body['message'] is String) return body['message'];
+      if (body is Map && body['message'] is String) {
+        return body['message'];
+      }
+      if (body is Map && body['message'] is List) {
+        return (body['message'] as List).join(', ');
+      }
     } catch (_) {}
     return '서버 오류 (${res.statusCode})';
   }

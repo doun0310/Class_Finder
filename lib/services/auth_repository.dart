@@ -1,14 +1,18 @@
 import 'dart:convert';
 import 'dart:math';
+
 import 'package:crypto/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../models/user.dart';
 import 'api_client.dart';
 
-/// 인증 저장소 추상화 — 로컬 구현 또는 원격(HTTP) 구현을 주입 가능
 abstract class AuthRepository {
   Future<AuthResult> signIn({required String email, required String password});
-  Future<AuthResult> signInWithProvider(AuthProvider provider);
+  Future<AuthResult> signInWithProvider(
+    AuthProvider provider, {
+    SocialAuthPayload? payload,
+  });
   Future<AuthResult> signUp({
     required String email,
     required String password,
@@ -26,6 +30,7 @@ abstract class AuthRepository {
 class AuthResult {
   final User user;
   final String token;
+
   const AuthResult({required this.user, required this.token});
 }
 
@@ -45,9 +50,39 @@ extension AuthProviderX on AuthProvider {
   };
 
   String get seedName => switch (this) {
-    AuthProvider.google => 'Google 사용자',
-    AuthProvider.kakao => 'Kakao 사용자',
-    AuthProvider.apple => 'Apple 사용자',
+    AuthProvider.google => 'Google User',
+    AuthProvider.kakao => 'Kakao User',
+    AuthProvider.apple => 'Apple User',
+  };
+}
+
+class SocialAuthPayload {
+  final AuthProvider provider;
+  final String? providerUserId;
+  final String? email;
+  final String? displayName;
+  final String? idToken;
+  final String? accessToken;
+  final String? authorizationCode;
+
+  const SocialAuthPayload({
+    required this.provider,
+    this.providerUserId,
+    this.email,
+    this.displayName,
+    this.idToken,
+    this.accessToken,
+    this.authorizationCode,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'provider': provider.name,
+    'providerUserId': providerUserId,
+    'email': email,
+    'displayName': displayName,
+    'idToken': idToken,
+    'accessToken': accessToken,
+    'authorizationCode': authorizationCode,
   };
 }
 
@@ -72,12 +107,11 @@ class AuthException implements Exception {
   String toString() => message;
 }
 
-// ── 로컬 구현 (SharedPreferences 기반, 백엔드 시뮬레이션) ──────────
 class LocalAuthRepository implements AuthRepository {
-  static const _usersKey = 'auth.users'; // 등록된 사용자 전체 저장소
-  static const _sessionKey = 'auth.session'; // 현재 세션 (userId)
-  static const _tokenKey = 'auth.token'; // 현재 토큰
-  static const _attemptsKey = 'auth.loginAttempts'; // 로그인 실패 횟수/잠금 상태
+  static const _usersKey = 'auth.users';
+  static const _sessionKey = 'auth.session';
+  static const _tokenKey = 'auth.token';
+  static const _attemptsKey = 'auth.loginAttempts';
 
   static String _hash(String password, String salt) {
     final bytes = utf8.encode('$password:$salt');
@@ -91,33 +125,37 @@ class LocalAuthRepository implements AuthRepository {
   }
 
   Future<Map<String, dynamic>> _readUsers() async {
-    final p = await SharedPreferences.getInstance();
-    final raw = p.getString(_usersKey);
-    if (raw == null) return {};
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_usersKey);
+    if (raw == null) {
+      return {};
+    }
     return Map<String, dynamic>.from(jsonDecode(raw) as Map);
   }
 
   Future<void> _writeUsers(Map<String, dynamic> users) async {
-    final p = await SharedPreferences.getInstance();
-    await p.setString(_usersKey, jsonEncode(users));
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_usersKey, jsonEncode(users));
   }
 
   Future<Map<String, dynamic>> _readAttempts() async {
-    final p = await SharedPreferences.getInstance();
-    final raw = p.getString(_attemptsKey);
-    if (raw == null) return {};
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_attemptsKey);
+    if (raw == null) {
+      return {};
+    }
     return Map<String, dynamic>.from(jsonDecode(raw) as Map);
   }
 
   Future<void> _writeAttempts(Map<String, dynamic> attempts) async {
-    final p = await SharedPreferences.getInstance();
-    await p.setString(_attemptsKey, jsonEncode(attempts));
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_attemptsKey, jsonEncode(attempts));
   }
 
   Future<void> _persistSession(User user, String token) async {
-    final p = await SharedPreferences.getInstance();
-    await p.setString(_sessionKey, user.id);
-    await p.setString(_tokenKey, token);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_sessionKey, user.id);
+    await prefs.setString(_tokenKey, token);
   }
 
   @override
@@ -125,10 +163,9 @@ class LocalAuthRepository implements AuthRepository {
     required String email,
     required String password,
   }) async {
-    // 네트워크 지연 시뮬레이션 (실제 백엔드 연동 시 제거)
     await Future.delayed(const Duration(milliseconds: 600));
 
-    final emailKey = email.toLowerCase();
+    final emailKey = email.trim().toLowerCase();
     final users = await _readUsers();
     final attempts = await _readAttempts();
     final now = DateTime.now();
@@ -143,30 +180,35 @@ class LocalAuthRepository implements AuthRepository {
         final seconds = lockedUntil.difference(now).inSeconds.clamp(1, 999);
         throw AuthException(
           AuthErrorCode.tooManyAttempts,
-          '로그인 시도가 너무 많습니다. 약 ${seconds.toString()}초 후 다시 시도해주세요.',
+          'Too many login attempts. Try again in ${seconds}s.',
         );
       }
     }
 
     final record = users[emailKey];
     if (record == null) {
-      throw const AuthException(AuthErrorCode.userNotFound, '가입되지 않은 이메일입니다.');
+      throw const AuthException(
+        AuthErrorCode.userNotFound,
+        'This email is not registered.',
+      );
     }
+
     final data = Map<String, dynamic>.from(record as Map);
     final salt = data['salt'] as String;
     final hash = data['passwordHash'] as String;
     if (_hash(password, salt) != hash) {
       final failureCount = (attemptData['count'] as num? ?? 0).toInt() + 1;
-
       if (failureCount >= 5) {
         attempts[emailKey] = {
           'count': 0,
-          'lockedUntil': now.add(const Duration(seconds: 30)).toIso8601String(),
+          'lockedUntil': now
+              .add(const Duration(seconds: 30))
+              .toIso8601String(),
         };
         await _writeAttempts(attempts);
         throw const AuthException(
           AuthErrorCode.tooManyAttempts,
-          '로그인 시도가 너무 많습니다. 30초 후 다시 시도해주세요.',
+          'Too many login attempts. Try again in 30s.',
         );
       }
 
@@ -176,10 +218,11 @@ class LocalAuthRepository implements AuthRepository {
       final remaining = 5 - failureCount;
       throw AuthException(
         AuthErrorCode.wrongPassword,
-        '비밀번호가 일치하지 않습니다. $remaining회 더 실패하면 잠시 로그인이 제한됩니다.',
+        'Wrong password. $remaining attempt(s) remaining before lockout.',
       );
     }
-    final user = User.fromJson(Map<String, dynamic>.from(data['profile']));
+
+    final user = User.fromJson(Map<String, dynamic>.from(data['profile'] as Map));
     final token = _randomToken();
     attempts.remove(emailKey);
     await _writeAttempts(attempts);
@@ -189,27 +232,44 @@ class LocalAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<AuthResult> signInWithProvider(AuthProvider provider) async {
-    await Future.delayed(const Duration(milliseconds: 550));
+  Future<AuthResult> signInWithProvider(
+    AuthProvider provider, {
+    SocialAuthPayload? payload,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 300));
 
     final users = await _readUsers();
-    final emailKey = provider.seedEmail;
-    final existing = users[emailKey];
     final token = _randomToken();
+    final emailKey =
+        (payload?.email?.trim().isNotEmpty ?? false)
+            ? payload!.email!.trim().toLowerCase()
+            : provider.seedEmail;
+    final existing = users[emailKey];
 
     if (existing != null) {
       final data = Map<String, dynamic>.from(existing as Map);
-      final user = User.fromJson(Map<String, dynamic>.from(data['profile']));
-      await _persistSession(user, token);
-      return AuthResult(user: user, token: token);
+      final existingProfile = User.fromJson(
+        Map<String, dynamic>.from(data['profile'] as Map),
+      );
+      final mergedUser = existingProfile.copyWith(
+        name: payload?.displayName ?? existingProfile.name,
+      );
+      data['profile'] = mergedUser.toJson();
+      users[emailKey] = data;
+      await _writeUsers(users);
+      await _persistSession(mergedUser, token);
+      return AuthResult(user: mergedUser, token: token);
     }
 
     final user = User(
       id: _randomToken(),
       email: emailKey,
-      name: provider.seedName,
+      name:
+          (payload?.displayName?.trim().isNotEmpty ?? false)
+              ? payload!.displayName!.trim()
+              : provider.seedName,
       studentId: '20240000',
-      department: '컴퓨터공학과',
+      department: 'Computer Science',
       grade: 2,
       createdAt: DateTime.now(),
     );
@@ -219,6 +279,7 @@ class LocalAuthRepository implements AuthRepository {
       'passwordHash': _hash(_randomToken(), salt),
       'salt': salt,
       'profile': user.toJson(),
+      'social': payload?.toJson(),
     };
     await _writeUsers(users);
     await _persistSession(user, token);
@@ -237,18 +298,18 @@ class LocalAuthRepository implements AuthRepository {
   }) async {
     await Future.delayed(const Duration(milliseconds: 700));
 
-    final emailKey = email.toLowerCase();
+    final emailKey = email.trim().toLowerCase();
     final users = await _readUsers();
     if (users.containsKey(emailKey)) {
       throw const AuthException(
         AuthErrorCode.emailAlreadyInUse,
-        '이미 사용 중인 이메일입니다.',
+        'This email is already in use.',
       );
     }
     if (password.length < 6) {
       throw const AuthException(
         AuthErrorCode.weakPassword,
-        '비밀번호는 6자 이상이어야 합니다.',
+        'Password must be at least 6 characters.',
       );
     }
 
@@ -280,27 +341,33 @@ class LocalAuthRepository implements AuthRepository {
   @override
   Future<String> requestPasswordReset({required String email}) async {
     await Future.delayed(const Duration(milliseconds: 650));
-    return '입력한 이메일이 등록되어 있다면 비밀번호 재설정 안내를 전송했습니다.';
+    return 'If the email exists, password reset instructions have been sent.';
   }
 
   @override
   Future<void> signOut() async {
-    final p = await SharedPreferences.getInstance();
-    await p.remove(_sessionKey);
-    await p.remove(_tokenKey);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_sessionKey);
+    await prefs.remove(_tokenKey);
   }
 
   @override
   Future<User?> getCurrentUser() async {
-    final p = await SharedPreferences.getInstance();
-    final userId = p.getString(_sessionKey);
-    if (userId == null) return null;
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString(_sessionKey);
+    if (userId == null) {
+      return null;
+    }
+
     final users = await _readUsers();
     for (final entry in users.entries) {
       final data = Map<String, dynamic>.from(entry.value as Map);
-      final profile = Map<String, dynamic>.from(data['profile']);
-      if (profile['id'] == userId) return User.fromJson(profile);
+      final profile = Map<String, dynamic>.from(data['profile'] as Map);
+      if (profile['id'] == userId) {
+        return User.fromJson(profile);
+      }
     }
+
     return null;
   }
 
@@ -310,8 +377,12 @@ class LocalAuthRepository implements AuthRepository {
     final users = await _readUsers();
     final emailKey = user.email.toLowerCase();
     if (!users.containsKey(emailKey)) {
-      throw const AuthException(AuthErrorCode.userNotFound, '사용자를 찾을 수 없습니다.');
+      throw const AuthException(
+        AuthErrorCode.userNotFound,
+        'User not found.',
+      );
     }
+
     final data = Map<String, dynamic>.from(users[emailKey] as Map);
     data['profile'] = user.toJson();
     users[emailKey] = data;
@@ -320,9 +391,12 @@ class LocalAuthRepository implements AuthRepository {
   }
 }
 
-// ── 원격(HTTP) 구현 — 실 서버 연동 시 사용 ────────────────────────
 class RemoteAuthRepository implements AuthRepository {
+  static const _sessionKey = 'auth.session';
+  static const _tokenKey = 'auth.token';
+
   final ApiClient client;
+
   RemoteAuthRepository(this.client);
 
   @override
@@ -330,29 +404,31 @@ class RemoteAuthRepository implements AuthRepository {
     required String email,
     required String password,
   }) async {
-    final res = await client.post('/auth/signin', {
-      'email': email,
-      'password': password,
-    }, withAuth: false);
-    final token = res['token'] as String;
-    client.setToken(token);
-    return AuthResult(
-      user: User.fromJson(Map<String, dynamic>.from(res['user'] as Map)),
-      token: token,
-    );
+    try {
+      final response = await client.post('/auth/signin', {
+        'email': email,
+        'password': password,
+      }, withAuth: false);
+      return _consumeAuthResult(response);
+    } on ApiException catch (error) {
+      throw _mapApiException(error);
+    }
   }
 
   @override
-  Future<AuthResult> signInWithProvider(AuthProvider provider) async {
-    final res = await client.post('/auth/social-signin', {
-      'provider': provider.name,
-    }, withAuth: false);
-    final token = res['token'] as String;
-    client.setToken(token);
-    return AuthResult(
-      user: User.fromJson(Map<String, dynamic>.from(res['user'] as Map)),
-      token: token,
-    );
+  Future<AuthResult> signInWithProvider(
+    AuthProvider provider, {
+    SocialAuthPayload? payload,
+  }) async {
+    try {
+      final response = await client.post('/auth/social-signin', {
+        'provider': provider.name,
+        if (payload != null) ...payload.toJson(),
+      }, withAuth: false);
+      return _consumeAuthResult(response);
+    } on ApiException catch (error) {
+      throw _mapApiException(error, provider: provider);
+    }
   }
 
   @override
@@ -364,44 +440,59 @@ class RemoteAuthRepository implements AuthRepository {
     required String department,
     required int grade,
   }) async {
-    final res = await client.post('/auth/signup', {
-      'email': email,
-      'password': password,
-      'name': name,
-      'studentId': studentId,
-      'department': department,
-      'grade': grade,
-    }, withAuth: false);
-    final token = res['token'] as String;
-    client.setToken(token);
-    return AuthResult(
-      user: User.fromJson(Map<String, dynamic>.from(res['user'] as Map)),
-      token: token,
-    );
+    try {
+      final response = await client.post('/auth/signup', {
+        'email': email,
+        'password': password,
+        'name': name,
+        'studentId': studentId,
+        'department': department,
+        'grade': grade,
+      }, withAuth: false);
+      return _consumeAuthResult(response);
+    } on ApiException catch (error) {
+      throw _mapApiException(error);
+    }
   }
 
   @override
   Future<String> requestPasswordReset({required String email}) async {
-    final res = await client.post('/auth/password-reset', {
-      'email': email,
-    }, withAuth: false);
-    return res['message'] as String? ?? '비밀번호 재설정 안내를 전송했습니다.';
+    try {
+      final response = await client.post('/auth/password-reset', {
+        'email': email,
+      }, withAuth: false);
+      return response['message'] as String? ??
+          'If the email exists, password reset instructions have been sent.';
+    } on ApiException catch (error) {
+      throw _mapApiException(error);
+    }
   }
 
   @override
   Future<void> signOut() async {
+    await _restoreToken();
     try {
       await client.post('/auth/signout', {});
+    } on ApiException {
+      // Clear the local session even if the server session is already gone.
     } finally {
       client.setToken(null);
+      await _clearSession();
     }
   }
 
   @override
   Future<User?> getCurrentUser() async {
     try {
-      final res = await client.get('/auth/me');
-      return User.fromJson(Map<String, dynamic>.from(res['user'] as Map));
+      final token = await _restoreToken();
+      if (token == null) {
+        return null;
+      }
+
+      final response = await client.get('/auth/me');
+      return User.fromJson(
+        Map<String, dynamic>.from(response['user'] as Map),
+      );
     } catch (_) {
       return null;
     }
@@ -409,7 +500,91 @@ class RemoteAuthRepository implements AuthRepository {
 
   @override
   Future<User> updateProfile(User user) async {
-    final res = await client.post('/users/${user.id}', user.toJson());
-    return User.fromJson(Map<String, dynamic>.from(res['user'] as Map));
+    try {
+      await _restoreToken();
+      final response = await client.patch('/auth/me', {
+        'name': user.name,
+        'studentId': user.studentId,
+        'department': user.department,
+        'grade': user.grade,
+      });
+      return User.fromJson(
+        Map<String, dynamic>.from(response['user'] as Map),
+      );
+    } on ApiException catch (error) {
+      throw _mapApiException(error);
+    }
+  }
+
+  Future<AuthResult> _consumeAuthResult(Map<String, dynamic> response) async {
+    final token = response['token'] as String;
+    final user = User.fromJson(
+      Map<String, dynamic>.from(response['user'] as Map),
+    );
+    client.setToken(token);
+    await _persistSession(user, token);
+    return AuthResult(user: user, token: token);
+  }
+
+  Future<void> _persistSession(User user, String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_sessionKey, user.id);
+    await prefs.setString(_tokenKey, token);
+  }
+
+  Future<String?> _restoreToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString(_tokenKey);
+    client.setToken(token);
+    return token;
+  }
+
+  Future<void> _clearSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_sessionKey);
+    await prefs.remove(_tokenKey);
+  }
+
+  AuthException _mapApiException(
+    ApiException error, {
+    AuthProvider? provider,
+  }) {
+    switch (error.statusCode) {
+      case 400:
+        if (error.message.toLowerCase().contains('password')) {
+          return const AuthException(
+            AuthErrorCode.weakPassword,
+            '비밀번호는 6자 이상이어야 합니다.',
+          );
+        }
+        return AuthException(AuthErrorCode.unknown, error.message);
+      case 401:
+        return const AuthException(
+          AuthErrorCode.wrongPassword,
+          '비밀번호가 일치하지 않습니다.',
+        );
+      case 404:
+        return const AuthException(
+          AuthErrorCode.userNotFound,
+          '가입되지 않은 이메일입니다.',
+        );
+      case 409:
+        return const AuthException(
+          AuthErrorCode.emailAlreadyInUse,
+          '이미 사용 중인 이메일입니다.',
+        );
+      case 429:
+        return const AuthException(
+          AuthErrorCode.tooManyAttempts,
+          '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요.',
+        );
+      case 503:
+        return AuthException(
+          AuthErrorCode.socialUnavailable,
+          '${provider?.label ?? '소셜'} 로그인을 지금 사용할 수 없습니다.',
+        );
+      default:
+        return AuthException(AuthErrorCode.network, error.message);
+    }
   }
 }

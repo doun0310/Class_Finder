@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../models/saved_timetable.dart';
 import '../services/auth_service.dart';
 import '../services/timetable_repository.dart';
@@ -13,7 +14,6 @@ class SavedTimetablesScreen extends StatefulWidget {
 }
 
 class _SavedTimetablesScreenState extends State<SavedTimetablesScreen> {
-  final _repo = TimetableRepository();
   List<SavedTimetable> _list = [];
   bool _loading = true;
 
@@ -26,27 +26,47 @@ class _SavedTimetablesScreenState extends State<SavedTimetablesScreen> {
   Future<void> _load() async {
     setState(() => _loading = true);
     final user = context.read<AuthService>().user;
-    if (user != null) {
-      _list = await _repo.listByUser(user.id);
+    final repository = context.read<TimetableRepository>();
+
+    try {
+      if (user != null) {
+        _list = await repository.listByUser(user);
+      } else {
+        _list = [];
+      }
+    } on TimetableRepositoryException catch (error) {
+      _list = [];
+      _showMessage(error.message);
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
-    if (mounted) setState(() => _loading = false);
   }
 
-  Future<void> _delete(SavedTimetable t) async {
-    await _repo.delete(t.id);
-    await _load();
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('시간표가 삭제되었습니다')));
+  Future<void> _delete(SavedTimetable timetable) async {
+    final user = context.read<AuthService>().user;
+    if (user == null) {
+      return;
+    }
+
+    try {
+      await context.read<TimetableRepository>().delete(
+        user: user,
+        id: timetable.id,
+      );
+      await _load();
+      _showMessage('시간표를 삭제했습니다.');
+    } on TimetableRepositoryException catch (error) {
+      _showMessage(error.message);
     }
   }
 
-  Future<void> _rename(SavedTimetable t) async {
-    final controller = TextEditingController(text: t.name);
+  Future<void> _rename(SavedTimetable timetable) async {
+    final controller = TextEditingController(text: timetable.name);
     final result = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('이름 변경'),
         content: TextField(
           controller: controller,
@@ -55,89 +75,124 @@ class _SavedTimetablesScreenState extends State<SavedTimetablesScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('취소'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(ctx, controller.text),
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
             child: const Text('저장'),
           ),
         ],
       ),
     );
-    if (result != null) {
-      await _repo.rename(t.id, result);
+
+    if (result == null) {
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    final user = context.read<AuthService>().user;
+    if (user == null) {
+      return;
+    }
+
+    try {
+      await context.read<TimetableRepository>().rename(
+        user: user,
+        id: timetable.id,
+        newName: result,
+      );
       await _load();
+      _showMessage('시간표 이름을 변경했습니다.');
+    } on TimetableRepositoryException catch (error) {
+      _showMessage(error.message);
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Scaffold(
-      appBar: AppBar(title: const Text('저장된 시간표'), centerTitle: false),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _list.isEmpty
-          ? _EmptyView()
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: _list.length,
-                itemBuilder: (_, i) {
-                  final t = _list[i];
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _SavedTimetableCard(
-                      saved: t,
-                      onOpen: () => _openDetail(t),
-                      onRename: () => _rename(t),
-                      onDelete: () => _confirmDelete(t),
-                    ),
-                  );
-                },
-              ),
-            ),
-      backgroundColor: theme.colorScheme.surface,
-    );
-  }
-
-  void _openDetail(SavedTimetable t) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => _SavedTimetableDetailScreen(saved: t)),
-    );
-  }
-
-  Future<void> _confirmDelete(SavedTimetable t) async {
-    final ok = await showDialog<bool>(
+  Future<void> _confirmDelete(SavedTimetable timetable) async {
+    final shouldDelete = await showDialog<bool>(
       context: context,
-      builder: (dCtx) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('삭제'),
-        content: Text('"${t.name}" 시간표를 삭제하시겠어요?'),
+        content: Text('"${timetable.name}" 시간표를 삭제할까요?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dCtx, false),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('취소'),
           ),
           FilledButton.tonal(
-            onPressed: () => Navigator.pop(dCtx, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('삭제'),
           ),
         ],
       ),
     );
-    if (ok == true) _delete(t);
+
+    if (shouldDelete == true) {
+      await _delete(timetable);
+    }
+  }
+
+  void _openDetail(SavedTimetable timetable) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _SavedTimetableDetailScreen(saved: timetable),
+      ),
+    );
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('저장한 시간표'), centerTitle: false),
+      backgroundColor: theme.colorScheme.surface,
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _list.isEmpty
+          ? const _EmptyView()
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: _list.length,
+                itemBuilder: (context, index) {
+                  final timetable = _list[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _SavedTimetableCard(
+                      saved: timetable,
+                      onOpen: () => _openDetail(timetable),
+                      onRename: () => _rename(timetable),
+                      onDelete: () => _confirmDelete(timetable),
+                    ),
+                  );
+                },
+              ),
+            ),
+    );
   }
 }
 
-// ── 저장 시간표 카드 ──────────────────────────────────────────────
 class _SavedTimetableCard extends StatelessWidget {
   final SavedTimetable saved;
   final VoidCallback onOpen;
   final VoidCallback onRename;
   final VoidCallback onDelete;
+
   const _SavedTimetableCard({
     required this.saved,
     required this.onOpen,
@@ -148,6 +203,7 @@ class _SavedTimetableCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     return Card(
       margin: EdgeInsets.zero,
       child: InkWell(
@@ -169,9 +225,13 @@ class _SavedTimetableCard extends StatelessWidget {
                     ),
                   ),
                   PopupMenuButton<String>(
-                    onSelected: (v) {
-                      if (v == 'rename') onRename();
-                      if (v == 'delete') onDelete();
+                    onSelected: (value) {
+                      if (value == 'rename') {
+                        onRename();
+                      }
+                      if (value == 'delete') {
+                        onDelete();
+                      }
                     },
                     itemBuilder: (_) => [
                       const PopupMenuItem(
@@ -237,58 +297,49 @@ class _SavedTimetableCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 10),
-              // 과목 수 표시
               Wrap(
                 spacing: 4,
                 runSpacing: 4,
-                children:
-                    saved.courses
-                        .take(4)
-                        .map(
-                          (c) => Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              c.name,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        )
-                        .toList()
-                      ..addAll(
-                        saved.courses.length > 4
-                            ? [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 3,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: theme.colorScheme.primaryContainer,
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    '+${saved.courses.length - 4}',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
-                                      color:
-                                          theme.colorScheme.onPrimaryContainer,
-                                    ),
-                                  ),
-                                ),
-                              ]
-                            : [],
+                children: [
+                  ...saved.courses.take(4).map(
+                    (course) => Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
                       ),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        course.name,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (saved.courses.length > 4)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '+${saved.courses.length - 4}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: theme.colorScheme.onPrimaryContainer,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ],
           ),
@@ -297,14 +348,23 @@ class _SavedTimetableCard extends StatelessWidget {
     );
   }
 
-  String _formatDate(DateTime d) {
+  String _formatDate(DateTime value) {
     final now = DateTime.now();
-    final diff = now.difference(d);
-    if (diff.inMinutes < 1) return '방금 전';
-    if (diff.inHours < 1) return '${diff.inMinutes}분 전';
-    if (diff.inDays < 1) return '${diff.inHours}시간 전';
-    if (diff.inDays < 7) return '${diff.inDays}일 전';
-    return '${d.year}.${d.month.toString().padLeft(2, '0')}.${d.day.toString().padLeft(2, '0')}';
+    final diff = now.difference(value);
+
+    if (diff.inMinutes < 1) {
+      return '방금 전';
+    }
+    if (diff.inHours < 1) {
+      return '${diff.inMinutes}분 전';
+    }
+    if (diff.inDays < 1) {
+      return '${diff.inHours}시간 전';
+    }
+    if (diff.inDays < 7) {
+      return '${diff.inDays}일 전';
+    }
+    return '${value.year}.${value.month.toString().padLeft(2, '0')}.${value.day.toString().padLeft(2, '0')}';
   }
 }
 
@@ -312,6 +372,7 @@ class _MetricChip extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool highlight;
+
   const _MetricChip({
     required this.icon,
     required this.label,
@@ -324,6 +385,7 @@ class _MetricChip extends StatelessWidget {
     final color = highlight
         ? theme.colorScheme.primary
         : theme.colorScheme.onSurfaceVariant;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -351,11 +413,13 @@ class _MetricChip extends StatelessWidget {
   }
 }
 
-// ── 빈 상태 ───────────────────────────────────────────────────────
 class _EmptyView extends StatelessWidget {
+  const _EmptyView();
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -367,17 +431,18 @@ class _EmptyView extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            '저장된 시간표가 없습니다',
+            '저장한 시간표가 없습니다',
             style: theme.textTheme.titleSmall?.copyWith(
               color: theme.colorScheme.outline,
             ),
           ),
           const SizedBox(height: 4),
           Text(
-            '시간표 매칭 결과에서 저장해보세요',
+            '시간표 결과 화면에서 저장해 두면 여기에서 다시 볼 수 있습니다.',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.outline,
             ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -385,15 +450,16 @@ class _EmptyView extends StatelessWidget {
   }
 }
 
-// ── 저장 시간표 상세 화면 ─────────────────────────────────────────
 class _SavedTimetableDetailScreen extends StatelessWidget {
   final SavedTimetable saved;
+
   const _SavedTimetableDetailScreen({required this.saved});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final timetable = TimetableRepository.toTimetable(saved);
+
     return Scaffold(
       appBar: AppBar(title: Text(saved.name)),
       body: Column(
@@ -433,6 +499,7 @@ class _DetailStat extends StatelessWidget {
   final String value;
   final IconData icon;
   final bool highlight;
+
   const _DetailStat(
     this.label,
     this.value,
@@ -446,6 +513,7 @@ class _DetailStat extends StatelessWidget {
     final color = highlight
         ? theme.colorScheme.primary
         : theme.colorScheme.onSurfaceVariant;
+
     return Column(
       children: [
         Icon(icon, size: 20, color: color),

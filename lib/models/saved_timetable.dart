@@ -8,8 +8,15 @@ class SavedTimetable {
   final double score;
   final Map<String, double> scoreBreakdown;
   final DateTime savedAt;
+  late final int _totalCredits = courses.fold(
+    0,
+    (sum, course) => sum + course.credit,
+  );
+  late final int _freeDays = weekdays
+      .where((day) => courses.every((course) => !course.occursOn(day)))
+      .length;
 
-  const SavedTimetable({
+  SavedTimetable({
     required this.id,
     required this.userId,
     required this.name,
@@ -19,11 +26,9 @@ class SavedTimetable {
     required this.savedAt,
   });
 
-  int get totalCredits => courses.fold(0, (sum, course) => sum + course.credit);
+  int get totalCredits => _totalCredits;
 
-  int get freeDays => weekdays
-      .where((day) => courses.every((course) => !course.occursOn(day)))
-      .length;
+  int get freeDays => _freeDays;
 
   Map<String, dynamic> toJson() => {
     'id': id,

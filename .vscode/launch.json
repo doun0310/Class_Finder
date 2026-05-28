@@ -1,0 +1,25 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Flutter main.dart + Backend (Localhost)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "preLaunchTask": "backend:start",
+      "toolArgs": [
+        "--dart-define=API_BASE_URL=http://localhost:3001"
+      ]
+    },
+    {
+      "name": "Flutter main.dart + Backend (Android Emulator)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "preLaunchTask": "backend:start",
+      "toolArgs": [
+        "--dart-define=API_BASE_URL=http://10.0.2.2:3001"
+      ]
+    }
+  ]
+}

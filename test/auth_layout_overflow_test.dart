@@ -2,6 +2,7 @@ import 'package:class_finder/screens/auth/login_screen.dart';
 import 'package:class_finder/screens/auth/signup_screen.dart';
 import 'package:class_finder/services/auth_repository.dart';
 import 'package:class_finder/services/auth_service.dart';
+import 'package:class_finder/services/social_auth_service.dart';
 import 'package:class_finder/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,7 +14,10 @@ void main() {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(
-          create: (_) => AuthService(LocalAuthRepository()),
+          create: (_) => AuthService(
+            LocalAuthRepository(),
+            socialAuth: _FakeSocialAuthService(),
+          ),
         ),
       ],
       child: MaterialApp(
@@ -72,4 +76,11 @@ void main() {
 
     expect(tester.takeException(), isNull);
   });
+}
+
+class _FakeSocialAuthService implements SocialAuthGateway {
+  @override
+  Future<SocialAuthPayload> authenticate(AuthProvider provider) async {
+    return SocialAuthPayload(provider: provider);
+  }
 }

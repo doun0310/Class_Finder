@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum CourseCategory {
+  majorRequired
+  majorElective
+  coreLiberalArts
+  generalElective
+}
+
+enum RatingSource {
+  officialEstimate
+  userInput
+  reviewBacked
+}
+
+model User {
+  id               String           @id
+  email            String?          @unique
+  name             String?
+  studentId        String?
+  department       String?
+  grade            Int?
+  passwordHash     String?
+  passwordSalt     String?
+  failedLoginCount Int              @default(0)
+  lockedUntil      DateTime?
+  socialProvider   String?
+  providerUserId   String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  timetables       SavedTimetable[]
+  sessions         AuthSession[]
+
+  @@map("users")
+}
+
+model AuthSession {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("auth_sessions")
+}
+
+model SavedTimetable {
+  id             String                @id @default(cuid())
+  userId         String
+  name           String
+  score          Float
+  scoreBreakdown Json
+  savedAt        DateTime              @default(now())
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courses        SavedTimetableCourse[]
+
+  @@index([userId, savedAt(sort: Desc)])
+  @@map("saved_timetables")
+}
+
+model SavedTimetableCourse {
+  id              String                    @id @default(cuid())
+  timetableId     String
+  externalId      String
+  courseCode      String
+  section         String
+  name            String
+  professor       String
+  credit          Int
+  rating          Float
+  difficulty      Int
+  hasTeamProject  Boolean
+  isMajorRequired Boolean
+  category        CourseCategory
+  ratingSource    RatingSource
+  grade           Int
+  position        Int
+  timetable       SavedTimetable            @relation(fields: [timetableId], references: [id], onDelete: Cascade)
+  timeSlots       SavedTimetableCourseSlot[]
+
+  @@index([timetableId, position])
+  @@map("saved_timetable_courses")
+}
+
+model SavedTimetableCourseSlot {
+  id        String               @id @default(cuid())
+  courseId   String
+  day        String
+  startHour  Int
+  endHour    Int
+  position   Int
+  course     SavedTimetableCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId, position])
+  @@map("saved_timetable_course_slots")
+}

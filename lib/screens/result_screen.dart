@@ -7,6 +7,7 @@ import '../services/auth_service.dart';
 import '../services/genetic_algorithm.dart';
 import '../services/timetable_repository.dart';
 import '../theme/app_theme.dart';
+import '../widgets/rating_source_badge.dart';
 import '../widgets/timetable_grid.dart';
 
 class ResultScreen extends StatelessWidget {
@@ -24,6 +25,7 @@ class ResultScreen extends StatelessWidget {
     final controller = TextEditingController(
       text: '추천 시간표 ${DateTime.now().month}/${DateTime.now().day}',
     );
+    final repository = context.read<TimetableRepository>();
     final name = await showDialog<String>(
       context: context,
       builder: (dialogContext) {
@@ -55,11 +57,20 @@ class ResultScreen extends StatelessWidget {
       return;
     }
 
-    await TimetableRepository().save(
-      userId: user.id,
-      name: name,
-      timetable: timetable,
-    );
+    try {
+      await repository.save(
+        user: user,
+        name: name,
+        timetable: timetable,
+      );
+    } on TimetableRepositoryException catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+      return;
+    }
 
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -686,8 +697,19 @@ class _CourseList extends StatelessWidget {
                                     style: theme.textTheme.titleSmall,
                                   ),
                                 ),
-                                if (course.isMajorRequired)
-                                  _Badge(text: '전공필수', color: AppTheme.coral),
+                                _Badge(
+                                  text: course.categoryLabel,
+                                  color: switch (course.category) {
+                                    CourseCategory.majorRequired =>
+                                      AppTheme.coral,
+                                    CourseCategory.majorElective =>
+                                      AppTheme.blue,
+                                    CourseCategory.coreLiberalArts =>
+                                      AppTheme.cyan,
+                                    CourseCategory.generalElective =>
+                                      AppTheme.leaf,
+                                  },
+                                ),
                                 if (course.hasTeamProject) ...[
                                   const SizedBox(width: 6),
                                   _Badge(text: '팀프로젝트', color: AppTheme.cyan),
@@ -700,30 +722,49 @@ class _CourseList extends StatelessWidget {
                               style: theme.textTheme.bodySmall,
                             ),
                             const SizedBox(height: 10),
-                            Row(
+                            Wrap(
+                              spacing: 12,
+                              runSpacing: 8,
+                              crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
-                                Icon(
-                                  Icons.star_rounded,
-                                  size: 16,
-                                  color: AppTheme.coral,
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.star_rounded,
+                                      size: 16,
+                                      color: AppTheme.coral,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      course.rating.toStringAsFixed(1),
+                                      style: theme.textTheme.labelLarge,
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  course.rating.toStringAsFixed(1),
-                                  style: theme.textTheme.labelLarge,
+                                RatingSourceBadge(
+                                  source: course.ratingSource,
+                                  compact: true,
                                 ),
-                                const SizedBox(width: 16),
-                                Text('난이도', style: theme.textTheme.labelMedium),
-                                const SizedBox(width: 8),
-                                ...List.generate(
-                                  5,
-                                  (index) => Icon(
-                                    Icons.circle,
-                                    size: 8,
-                                    color: index < course.difficulty
-                                        ? AppTheme.coral
-                                        : theme.colorScheme.outlineVariant,
-                                  ),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '난이도',
+                                      style: theme.textTheme.labelMedium,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    ...List.generate(
+                                      5,
+                                      (index) => Icon(
+                                        Icons.circle,
+                                        size: 8,
+                                        color: index < course.difficulty
+                                            ? AppTheme.coral
+                                            : theme.colorScheme.outlineVariant,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),

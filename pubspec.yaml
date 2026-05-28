@@ -38,6 +38,10 @@ dependencies:
   crypto: ^3.0.3       # 비밀번호 SHA-256 해싱
   http: ^1.2.2         # 백엔드 HTTP 클라이언트
 
+  google_sign_in: ^7.2.0
+  kakao_flutter_sdk_user: ^2.0.0+1
+  sign_in_with_apple: ^7.0.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

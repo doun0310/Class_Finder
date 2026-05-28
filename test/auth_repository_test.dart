@@ -19,9 +19,9 @@ void main() {
       await repository.signUp(
         email: 'student@example.com',
         password: 'password123',
-        name: '홍길동',
+        name: 'Student Kim',
         studentId: '20230001',
-        department: '컴퓨터공학과',
+        department: 'Computer Science',
         grade: 2,
       );
 
@@ -30,16 +30,16 @@ void main() {
       );
 
       expect(unknownMessage, existingMessage);
-      expect(unknownMessage, contains('등록되어 있다면'));
+      expect(unknownMessage, contains('If the email exists'));
     });
 
     test('locks sign in after repeated wrong password attempts', () async {
       await repository.signUp(
         email: 'student@example.com',
         password: 'password123',
-        name: '홍길동',
+        name: 'Student Kim',
         studentId: '20230001',
-        department: '컴퓨터공학과',
+        department: 'Computer Science',
         grade: 2,
       );
 

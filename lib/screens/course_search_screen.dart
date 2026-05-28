@@ -3,8 +3,39 @@ import 'package:flutter/material.dart';
 import '../models/course.dart';
 import '../services/real_courses.dart';
 import '../theme/app_theme.dart';
+import '../widgets/rating_source_badge.dart';
 
-enum SortMode { name, rating, difficulty, credit }
+enum SortMode { rating, name, difficulty, credit }
+
+enum CourseScopeFilter {
+  all,
+  majorRequired,
+  majorElective,
+  coreLiberalArts,
+  generalElective,
+}
+
+extension on CourseScopeFilter {
+  String get label => switch (this) {
+    CourseScopeFilter.all => '전체',
+    CourseScopeFilter.majorRequired => '전공필수',
+    CourseScopeFilter.majorElective => '전공선택',
+    CourseScopeFilter.coreLiberalArts => '핵심교양',
+    CourseScopeFilter.generalElective => '일반교양',
+  };
+
+  bool matches(Course course) => switch (this) {
+    CourseScopeFilter.all => true,
+    CourseScopeFilter.majorRequired =>
+      course.category == CourseCategory.majorRequired,
+    CourseScopeFilter.majorElective =>
+      course.category == CourseCategory.majorElective,
+    CourseScopeFilter.coreLiberalArts =>
+      course.category == CourseCategory.coreLiberalArts,
+    CourseScopeFilter.generalElective =>
+      course.category == CourseCategory.generalElective,
+  };
+}
 
 class CourseSearchScreen extends StatefulWidget {
   const CourseSearchScreen({super.key});
@@ -15,44 +46,66 @@ class CourseSearchScreen extends StatefulWidget {
 
 class _CourseSearchScreenState extends State<CourseSearchScreen> {
   final _controller = TextEditingController();
+  late final Map<String, String> _searchIndex = {
+    for (final course in realCourses)
+      course.id: [
+        course.name,
+        course.professor,
+        course.courseCode,
+        course.categoryLabel,
+        course.timeSummary,
+      ].join(' ').toLowerCase(),
+  };
+  late final int _totalSections = realCourses.length;
+  late final int _majorRequiredCount = realCourses
+      .where((course) => course.category == CourseCategory.majorRequired)
+      .length;
+  late final int _majorElectiveCount = realCourses
+      .where((course) => course.category == CourseCategory.majorElective)
+      .length;
+  late final int _coreLiberalArtsCount = realCourses
+      .where((course) => course.category == CourseCategory.coreLiberalArts)
+      .length;
+  late final int _unscheduledCount = realCourses
+      .where((course) => !course.hasTimeSlots)
+      .length;
   String _query = '';
   int? _gradeFilter;
-  bool? _requiredFilter;
   bool? _teamFilter;
+  bool? _scheduledFilter;
+  CourseScopeFilter _scopeFilter = CourseScopeFilter.all;
   SortMode _sort = SortMode.rating;
 
   List<Course> get _filtered {
-    final query = _query.trim();
-    final normalized = query.toLowerCase();
+    final query = _query.trim().toLowerCase();
 
     final filtered = realCourses.where((course) {
-      if (normalized.isNotEmpty) {
-        final matched =
-            course.name.toLowerCase().contains(normalized) ||
-            course.professor.toLowerCase().contains(normalized) ||
-            course.timeSummary.toLowerCase().contains(normalized);
-        if (!matched) {
+      if (query.isNotEmpty) {
+        if (!_searchIndex[course.id]!.contains(query)) {
           return false;
         }
       }
+
       if (_gradeFilter != null && course.grade != _gradeFilter) {
         return false;
       }
-      if (_requiredFilter != null &&
-          course.isMajorRequired != _requiredFilter) {
+      if (!_scopeFilter.matches(course)) {
         return false;
       }
       if (_teamFilter != null && course.hasTeamProject != _teamFilter) {
+        return false;
+      }
+      if (_scheduledFilter != null && course.hasTimeSlots != _scheduledFilter) {
         return false;
       }
       return true;
     }).toList();
 
     switch (_sort) {
-      case SortMode.name:
-        filtered.sort((a, b) => a.name.compareTo(b.name));
       case SortMode.rating:
         filtered.sort((a, b) => b.rating.compareTo(a.rating));
+      case SortMode.name:
+        filtered.sort((a, b) => a.name.compareTo(b.name));
       case SortMode.difficulty:
         filtered.sort((a, b) => a.difficulty.compareTo(b.difficulty));
       case SortMode.credit:
@@ -72,6 +125,11 @@ class _CourseSearchScreenState extends State<CourseSearchScreen> {
   Widget build(BuildContext context) {
     final courses = _filtered;
     final theme = Theme.of(context);
+    final totalSections = _totalSections;
+    final majorRequiredCount = _majorRequiredCount;
+    final majorElectiveCount = _majorElectiveCount;
+    final coreLiberalArtsCount = _coreLiberalArtsCount;
+    final unscheduledCount = _unscheduledCount;
 
     return Scaffold(
       body: CustomScrollView(
@@ -92,13 +150,64 @@ class _CourseSearchScreenState extends State<CourseSearchScreen> {
                     Text('강의 탐색', style: theme.textTheme.headlineSmall),
                     const SizedBox(height: 8),
                     Text(
-                      '학년, 평점, 팀프로젝트 여부까지 빠르게 필터링해 분반을 비교하세요.',
+                      '추가한 모든 강의를 한 화면에서 보고, 분반별 평점과 시간표 상태까지 바로 비교할 수 있습니다.',
                       style: theme.textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        _SummaryChip(
+                          icon: Icons.library_books_rounded,
+                          label: '전체 $totalSections개',
+                          color: AppTheme.blue,
+                        ),
+                        _SummaryChip(
+                          icon: Icons.push_pin_rounded,
+                          label: '전필 $majorRequiredCount개',
+                          color: AppTheme.coral,
+                        ),
+                        _SummaryChip(
+                          icon: Icons.memory_rounded,
+                          label: '전선 $majorElectiveCount개',
+                          color: AppTheme.blue,
+                        ),
+                        _SummaryChip(
+                          icon: Icons.menu_book_rounded,
+                          label: '핵심교양 $coreLiberalArtsCount개',
+                          color: AppTheme.cyan,
+                        ),
+                        _SummaryChip(
+                          icon: Icons.event_busy_rounded,
+                          label: '시간표 미지정 $unscheduledCount개',
+                          color: AppTheme.leaf,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text('평점 근거', style: theme.textTheme.titleSmall),
+                    const SizedBox(height: 10),
+                    const Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        RatingSourceBadge(
+                          source: RatingSource.officialEstimate,
+                        ),
+                        RatingSourceBadge(source: RatingSource.userInput),
+                        RatingSourceBadge(source: RatingSource.reviewBacked),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '공개 자료 기반 추정, 직접 입력, 실제 리뷰 반영 여부를 배지로 구분합니다.',
+                      style: theme.textTheme.bodySmall,
                     ),
                     const SizedBox(height: 16),
                     SearchBar(
                       controller: _controller,
-                      hintText: '과목명, 교수명, 시간대로 검색',
+                      hintText: '과목명, 교수명, 과목코드, 시간으로 검색',
                       leading: const Icon(Icons.search_rounded),
                       trailing: [
                         if (_query.isNotEmpty)
@@ -122,12 +231,15 @@ class _CourseSearchScreenState extends State<CourseSearchScreen> {
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
               child: _FilterPanel(
                 gradeFilter: _gradeFilter,
-                requiredFilter: _requiredFilter,
                 teamFilter: _teamFilter,
+                scheduledFilter: _scheduledFilter,
+                scopeFilter: _scopeFilter,
                 sort: _sort,
                 onGrade: (value) => setState(() => _gradeFilter = value),
-                onRequired: (value) => setState(() => _requiredFilter = value),
                 onTeam: (value) => setState(() => _teamFilter = value),
+                onScheduled: (value) =>
+                    setState(() => _scheduledFilter = value),
+                onScope: (value) => setState(() => _scopeFilter = value),
                 onSort: (value) => setState(() => _sort = value),
               ),
             ),
@@ -136,7 +248,7 @@ class _CourseSearchScreenState extends State<CourseSearchScreen> {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
               child: Text(
-                '검색 결과 ${courses.length}개',
+                '검색 결과 ${courses.length}개 분반',
                 style: theme.textTheme.titleSmall,
               ),
             ),
@@ -166,8 +278,9 @@ class _CourseSearchScreenState extends State<CourseSearchScreen> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        '필터를 일부 해제하거나 검색어를 넓혀 보세요.',
+                        '필터를 일부 해제하거나 검색어를 줄여서 다시 확인해 보세요.',
                         style: theme.textTheme.bodySmall,
+                        textAlign: TextAlign.center,
                       ),
                     ],
                   ),
@@ -191,24 +304,64 @@ class _CourseSearchScreenState extends State<CourseSearchScreen> {
   }
 }
 
+class _SummaryChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _SummaryChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: Theme.of(
+              context,
+            ).textTheme.labelLarge?.copyWith(color: color),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _FilterPanel extends StatelessWidget {
   final int? gradeFilter;
-  final bool? requiredFilter;
   final bool? teamFilter;
+  final bool? scheduledFilter;
+  final CourseScopeFilter scopeFilter;
   final SortMode sort;
   final ValueChanged<int?> onGrade;
-  final ValueChanged<bool?> onRequired;
   final ValueChanged<bool?> onTeam;
+  final ValueChanged<bool?> onScheduled;
+  final ValueChanged<CourseScopeFilter> onScope;
   final ValueChanged<SortMode> onSort;
 
   const _FilterPanel({
     required this.gradeFilter,
-    required this.requiredFilter,
     required this.teamFilter,
+    required this.scheduledFilter,
+    required this.scopeFilter,
     required this.sort,
     required this.onGrade,
-    required this.onRequired,
     required this.onTeam,
+    required this.onScheduled,
+    required this.onScope,
     required this.onSort,
   });
 
@@ -233,17 +386,25 @@ class _FilterPanel extends StatelessWidget {
             onSelected: onGrade,
           ),
           const SizedBox(height: 14),
+          _FilterGroup<CourseScopeFilter>(
+            title: '구분',
+            selected: scopeFilter,
+            options: CourseScopeFilter.values,
+            labelBuilder: (value) => value.label,
+            onSelected: onScope,
+          ),
+          const SizedBox(height: 14),
           _FilterGroup<bool?>(
-            title: '이수 구분',
-            selected: requiredFilter,
+            title: '시간표 상태',
+            selected: scheduledFilter,
             options: const [null, true, false],
             labelBuilder: (value) {
               if (value == null) {
                 return '전체';
               }
-              return value ? '전공필수' : '선택';
+              return value ? '시간표 있음' : '시간표 미지정';
             },
-            onSelected: onRequired,
+            onSelected: onScheduled,
           ),
           const SizedBox(height: 14),
           _FilterGroup<bool?>(
@@ -280,7 +441,7 @@ class _FilterPanel extends StatelessWidget {
                     value: SortMode.credit,
                     child: Text('학점 높은 순'),
                   ),
-                  DropdownMenuItem(value: SortMode.name, child: Text('이름순')),
+                  DropdownMenuItem(value: SortMode.name, child: Text('이름 순')),
                 ],
                 onChanged: (value) {
                   if (value != null) {
@@ -358,17 +519,59 @@ class _CourseCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _Tag(text: '${course.grade}학년', color: AppTheme.blue),
-                  const SizedBox(width: 8),
-                  if (course.isMajorRequired)
-                    _Tag(text: '전공필수', color: AppTheme.coral),
-                  if (course.hasTeamProject) ...[
-                    const SizedBox(width: 8),
-                    _Tag(text: '팀프로젝트', color: AppTheme.cyan),
-                  ],
-                  const Spacer(),
-                  Text('${course.credit}학점', style: theme.textTheme.labelLarge),
+                  Expanded(
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _Tag(
+                          text: _gradeLabel(course.grade),
+                          color: AppTheme.blue,
+                        ),
+                        _Tag(
+                          text: course.categoryLabel,
+                          color: switch (course.category) {
+                            CourseCategory.majorRequired => AppTheme.coral,
+                            CourseCategory.majorElective => AppTheme.blue,
+                            CourseCategory.coreLiberalArts => AppTheme.cyan,
+                            CourseCategory.generalElective => AppTheme.leaf,
+                          },
+                        ),
+                        if (course.hasTeamProject)
+                          const _Tag(text: '팀프로젝트', color: AppTheme.cyan),
+                        if (!course.hasTimeSlots)
+                          const _Tag(text: '시간표 미지정', color: AppTheme.leaf),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '${course.credit}학점',
+                        style: theme.textTheme.labelLarge,
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.star_rounded,
+                            size: 16,
+                            color: AppTheme.coral,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            course.rating.toStringAsFixed(1),
+                            style: theme.textTheme.titleSmall,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ],
               ),
               const SizedBox(height: 14),
@@ -379,30 +582,32 @@ class _CourseCard extends StatelessWidget {
                 style: theme.textTheme.bodySmall,
               ),
               const SizedBox(height: 14),
-              Row(
+              Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  const Icon(
-                    Icons.star_rounded,
-                    size: 16,
-                    color: AppTheme.coral,
-                  ),
-                  const SizedBox(width: 4),
+                  RatingSourceBadge(source: course.ratingSource, compact: true),
                   Text(
-                    course.rating.toStringAsFixed(1),
-                    style: theme.textTheme.labelLarge,
+                    '과목코드 ${course.courseCode}',
+                    style: theme.textTheme.labelMedium,
                   ),
-                  const SizedBox(width: 18),
-                  Text('난이도', style: theme.textTheme.labelMedium),
-                  const SizedBox(width: 8),
-                  ...List.generate(
-                    5,
-                    (index) => Icon(
-                      Icons.circle,
-                      size: 8,
-                      color: index < course.difficulty
-                          ? AppTheme.coral
-                          : theme.colorScheme.outlineVariant,
-                    ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('난이도', style: theme.textTheme.labelMedium),
+                      const SizedBox(width: 8),
+                      ...List.generate(
+                        5,
+                        (index) => Icon(
+                          Icons.circle,
+                          size: 8,
+                          color: index < course.difficulty
+                              ? AppTheme.coral
+                              : theme.colorScheme.outlineVariant,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -480,6 +685,11 @@ class _CourseDetailSheet extends StatelessWidget {
               '${course.professor} · ${course.section}분반',
               style: theme.textTheme.bodyMedium,
             ),
+            const SizedBox(height: 8),
+            Text(
+              '과목코드 ${course.courseCode}',
+              style: theme.textTheme.labelMedium,
+            ),
             const SizedBox(height: 18),
             Row(
               children: [
@@ -494,7 +704,7 @@ class _CourseDetailSheet extends StatelessWidget {
                 Expanded(
                   child: _InfoTile(
                     label: '학년',
-                    value: '${course.grade}학년',
+                    value: _gradeLabel(course.grade),
                     icon: Icons.school_rounded,
                   ),
                 ),
@@ -502,7 +712,7 @@ class _CourseDetailSheet extends StatelessWidget {
                 Expanded(
                   child: _InfoTile(
                     label: '구분',
-                    value: course.isMajorRequired ? '전공필수' : '선택',
+                    value: course.categoryLabel,
                     icon: Icons.category_rounded,
                   ),
                 ),
@@ -560,47 +770,91 @@ class _CourseDetailSheet extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('평점 근거', style: theme.textTheme.labelMedium),
+                  const SizedBox(height: 10),
+                  RatingSourceBadge(source: course.ratingSource),
+                  const SizedBox(height: 10),
+                  Text(
+                    course.ratingSource.description,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 18),
             Text('수업 시간', style: theme.textTheme.titleMedium),
             const SizedBox(height: 10),
-            ...course.timeSlots.map(
-              (slot) => Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.all(14),
+            if (course.hasTimeSlots)
+              ...course.timeSlots.map(
+                (slot) => Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          slot.day,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            color: theme.colorScheme.onPrimaryContainer,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          '${slot.startHour}:00 ~ ${slot.endHour}:00 (${slot.durationHours}시간)',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerLow,
+                  color: AppTheme.leaf.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
                   children: [
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primaryContainer,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        slot.day,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          color: theme.colorScheme.onPrimaryContainer,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
+                    const Icon(Icons.event_busy_rounded, color: AppTheme.leaf),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        '${slot.startHour}:00 ~ ${slot.endHour}:00 (${slot.durationHours}시간)',
-                        style: theme.textTheme.bodyMedium,
+                        '이 과목은 공식 시간표에 강의 시간이 지정되지 않아 탐색 목록에서만 표시됩니다.',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: AppTheme.leaf,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
             if (course.hasTeamProject) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
@@ -613,7 +867,7 @@ class _CourseDetailSheet extends StatelessWidget {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        '이 강의는 팀프로젝트가 포함되어 있습니다.',
+                        '이 강의에는 팀프로젝트가 포함되어 있습니다.',
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: AppTheme.cyan,
                         ),
@@ -654,7 +908,11 @@ class _InfoTile extends StatelessWidget {
         children: [
           Icon(icon, color: theme.colorScheme.primary),
           const SizedBox(height: 8),
-          Text(value, style: theme.textTheme.titleSmall),
+          Text(
+            value,
+            style: theme.textTheme.titleSmall,
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: 4),
           Text(label, style: theme.textTheme.labelMedium),
         ],
@@ -662,3 +920,5 @@ class _InfoTile extends StatelessWidget {
     );
   }
 }
+
+String _gradeLabel(int grade) => grade <= 0 ? '공통' : '$grade학년';
