@@ -70,7 +70,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: _HeroPanel(
                   greeting: greeting,
                   name: user?.name ?? '게스트',
-                  department: user?.department ?? '빠른 시간표 탐색',
+                  department: user?.department ?? '강의와 시간표를 한곳에서 확인',
                   savedCount: _saved.length,
                   onNotifications: () {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -88,9 +88,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     Expanded(
                       child: _ActionCard(
                         color: AppTheme.blue,
-                        icon: Icons.auto_awesome_rounded,
+                        icon: Icons.calendar_month_rounded,
                         title: '시간표 추천',
-                        subtitle: '선호 조건을 기반으로 상위 조합을 생성합니다.',
+                        subtitle: '선택한 조건에 맞는 시간표 조합을 빠르게 확인합니다.',
                         onTap: () => widget.onNavigate?.call(1),
                       ),
                     ),
@@ -152,8 +152,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     final saved = _saved[index];
                     return _SavedTimetableCard(
                       saved: saved,
-                      onTap: () =>
-                          Navigator.pushNamed(context, '/saved').then((_) => _load()),
+                      onTap: () => Navigator.pushNamed(
+                        context,
+                        '/saved',
+                      ).then((_) => _load()),
                     );
                   },
                   separatorBuilder: (context, index) =>
@@ -226,7 +228,7 @@ class _HeroPanel extends StatelessWidget {
                   borderRadius: BorderRadius.circular(18),
                 ),
                 child: const Icon(
-                  Icons.auto_awesome_rounded,
+                  Icons.calendar_view_week_rounded,
                   color: Colors.white,
                   size: 28,
                 ),
@@ -251,7 +253,7 @@ class _HeroPanel extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '$name 님을 위한 시간표 브리핑',
+            '$name 님의 시간표 현황',
             style: theme.textTheme.headlineSmall?.copyWith(
               color: Colors.white,
               letterSpacing: -0.6,
@@ -272,11 +274,11 @@ class _HeroPanel extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               const Expanded(
-                child: _MetricTile(label: '추천 엔진', value: 'GA + 보정'),
+                child: _MetricTile(label: '생성 방식', value: '조건 기반'),
               ),
               const SizedBox(width: 10),
               const Expanded(
-                child: _MetricTile(label: '주요 기준', value: '공강 + 평점'),
+                child: _MetricTile(label: '중점 항목', value: '공강 · 평점'),
               ),
             ],
           ),
@@ -465,7 +467,7 @@ class _EmptyState extends StatelessWidget {
               borderRadius: BorderRadius.circular(20),
             ),
             child: Icon(
-              Icons.auto_awesome_rounded,
+              Icons.calendar_today_rounded,
               color: theme.colorScheme.onPrimaryContainer,
               size: 30,
             ),
@@ -474,15 +476,15 @@ class _EmptyState extends StatelessWidget {
           Text('아직 저장된 시간표가 없습니다.', style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
           Text(
-            '선호 조건을 입력하면 상위 추천 시간표를 바로 확인할 수 있습니다.',
+            '조건을 입력하면 바로 시간표를 만들어 볼 수 있습니다.',
             style: theme.textTheme.bodySmall,
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 18),
           FilledButton.icon(
             onPressed: onCreate,
-            icon: const Icon(Icons.auto_awesome_rounded),
-            label: const Text('첫 추천 시작하기'),
+            icon: const Icon(Icons.calendar_month_rounded),
+            label: const Text('첫 시간표 만들기'),
           ),
         ],
       ),

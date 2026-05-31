@@ -5,8 +5,10 @@ import 'package:provider/provider.dart';
 
 import '../../services/auth_repository.dart';
 import '../../services/auth_service.dart';
+import '../../services/runtime_config.dart';
 import '../../widgets/app_text_field.dart';
 import '../../widgets/auth_shell.dart';
+import '../../widgets/runtime_mode_notice.dart';
 import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -79,6 +81,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final auth = context.watch<AuthService>();
+    final runtimeConfig = context.watch<RuntimeConfig>();
     final errorState = _LoginErrorState.from(
       theme: theme,
       code: auth.lastErrorCode,
@@ -86,37 +89,36 @@ class _LoginScreenState extends State<LoginScreen> {
     );
 
     return AuthShell(
-      badge: 'Campus Account',
-      title: '저장한 시간표로 바로 돌아가기',
-      subtitle: '추천 기록과 선호 조건을 불러와서 다음 시간표 생성까지 바로 이어갑니다.',
-      heroTitle: '수강신청 직전까지 이어지는\n개인화 추천 경험',
-      heroSubtitle:
-          '학기별 선호 시간, 공강 요일, 저장한 시간표를 한 계정에서 관리하고 필요한 순간 바로 다시 불러올 수 있습니다.',
+      badge: '계정 로그인',
+      title: '계정에 로그인해 계속 이용하세요',
+      subtitle: '저장한 시간표와 계정 정보를 불러와 바로 이어서 사용할 수 있습니다.',
+      heroTitle: '학교 생활에 맞춘\n시간표 관리',
+      heroSubtitle: '저장한 시간표, 학년 정보, 로그인 상태를 한 계정에서 관리하고 필요할 때 다시 불러올 수 있습니다.',
       icon: Icons.lock_person_rounded,
       features: const [
         AuthFeatureItem(
           icon: Icons.schedule_send_rounded,
-          title: '선호 조건 즉시 복원',
-          description: '시작 시간, 종료 시간, 공강, 최소 학점 설정을 그대로 이어받습니다.',
+          title: '저장 내용 바로 불러오기',
+          description: '저장한 시간표와 최근 사용 기록을 같은 계정에서 확인합니다.',
         ),
         AuthFeatureItem(
           icon: Icons.bookmark_added_rounded,
-          title: '추천 결과 안전 보관',
-          description: '마음에 든 시간표와 비교 대상 결과를 학기별로 다시 확인할 수 있습니다.',
+          title: '시간표 기록 보관',
+          description: '저장한 시간표를 나중에 다시 열어 보고 비교할 수 있습니다.',
         ),
         AuthFeatureItem(
           icon: Icons.verified_user_rounded,
-          title: '계정 기반 사용 흐름',
-          description: '기기 교체나 재설치 이후에도 이전 상태를 빠르게 이어갈 수 있습니다.',
+          title: '기기 변경에도 유지',
+          description: '기기 교체나 재설치 이후에도 같은 계정으로 이어서 사용할 수 있습니다.',
         ),
       ],
       metrics: const [
-        AuthMetricItem(value: '즉시', label: '추천 이력 복원'),
-        AuthMetricItem(value: '1계정', label: '선호 조건 통합 관리'),
-        AuthMetricItem(value: '학기별', label: '저장 시간표 히스토리'),
+        AuthMetricItem(value: '저장 시간표', label: '계정 연동'),
+        AuthMetricItem(value: '학과/학년', label: '기본 정보 유지'),
+        AuthMetricItem(value: '학기별', label: '사용 기록 관리'),
       ],
       footer: Text(
-        '계정을 만들면 추천 기록과 저장한 시간표를 더 안정적으로 관리할 수 있습니다.',
+        '로그인하면 저장한 시간표와 계정 정보를 같은 흐름 안에서 계속 관리할 수 있습니다.',
         style: theme.textTheme.bodySmall?.copyWith(
           color: theme.colorScheme.onSurfaceVariant,
         ),
@@ -130,9 +132,11 @@ class _LoginScreenState extends State<LoginScreen> {
               icon: Icons.shield_outlined,
               backgroundColor: theme.colorScheme.secondaryContainer,
               foregroundColor: theme.colorScheme.onSecondaryContainer,
-              title: '보안 연결 사용 중',
-              description: '계정에 연결된 추천 조건과 저장 시간표를 안전하게 불러옵니다.',
+              title: '계정 연결 확인',
+              description: '계정에 연결된 저장 시간표와 프로필 정보를 불러옵니다.',
             ),
+            const SizedBox(height: 14),
+            RuntimeModeNotice(config: runtimeConfig),
             if (errorState != null) ...[
               const SizedBox(height: 14),
               _InfoBanner(
@@ -153,7 +157,7 @@ class _LoginScreenState extends State<LoginScreen> {
               onChanged: (_) => _clearAuthError(),
               validator: (value) {
                 if (value == null || value.isEmpty) {
-                  return '이메일을 입력해주세요';
+                  return '이메일을 입력해 주세요';
                 }
                 if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+').hasMatch(value)) {
                   return '올바른 이메일 형식이 아닙니다';
@@ -172,7 +176,7 @@ class _LoginScreenState extends State<LoginScreen> {
               onEditingComplete: _signIn,
               validator: (value) {
                 if (value == null || value.isEmpty) {
-                  return '비밀번호를 입력해주세요';
+                  return '비밀번호를 입력해 주세요';
                 }
                 return null;
               },
@@ -197,14 +201,14 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Row(
                 children: [
                   Icon(
-                    Icons.auto_awesome_rounded,
+                    Icons.bookmark_added_rounded,
                     size: 18,
                     color: theme.colorScheme.primary,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      '로그인 후 저장 시간표, 선호 조건, 추천 결과를 한 번에 이어서 확인할 수 있습니다.',
+                      '로그인하면 저장한 시간표와 계정 정보를 한 번에 확인할 수 있습니다.',
                       style: theme.textTheme.bodySmall,
                     ),
                   ),
@@ -395,7 +399,7 @@ class _PasswordResetSheetState extends State<PasswordResetSheet> {
             Text('비밀번호 재설정', style: theme.textTheme.headlineSmall),
             const SizedBox(height: 8),
             Text(
-              '가입한 이메일을 입력하면 비밀번호 재설정 안내를 보냅니다.',
+              '가입한 이메일을 입력하면 비밀번호 재설정 안내를 보내드립니다.',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -436,7 +440,7 @@ class _PasswordResetSheetState extends State<PasswordResetSheet> {
                       onEditingComplete: _submit,
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return '이메일을 입력해주세요';
+                          return '이메일을 입력해 주세요';
                         }
                         if (!RegExp(
                           r'^[^@\s]+@[^@\s]+\.[^@\s]+',
@@ -448,7 +452,7 @@ class _PasswordResetSheetState extends State<PasswordResetSheet> {
                     ),
                     const SizedBox(height: 14),
                     Text(
-                      '보안상 계정 존재 여부와 관계없이 동일한 안내 문구를 표시합니다.',
+                      '보안을 위해 계정 존재 여부와 관계없이 동일한 안내 문구를 표시합니다.',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -705,7 +709,7 @@ class _LoginErrorState {
           backgroundColor: scheme.errorContainer,
           foregroundColor: scheme.onErrorContainer,
           title: '가입되지 않은 이메일입니다',
-          description: '입력한 주소로는 계정을 찾지 못했습니다. 이메일을 다시 확인하거나 새 계정을 만들어주세요.',
+          description: '입력한 주소로는 계정을 찾지 못했습니다. 이메일을 다시 확인하거나 새 계정을 만들어 주세요.',
         );
       case AuthErrorCode.wrongPassword:
         return _LoginErrorState(
@@ -720,7 +724,7 @@ class _LoginErrorState {
           icon: Icons.timer_outlined,
           backgroundColor: scheme.tertiaryContainer,
           foregroundColor: scheme.onTertiaryContainer,
-          title: '잠시 후 다시 시도해주세요',
+          title: '잠시 후 다시 시도해 주세요',
           description: message,
         );
       case AuthErrorCode.network:
@@ -728,8 +732,8 @@ class _LoginErrorState {
           icon: Icons.wifi_off_rounded,
           backgroundColor: scheme.secondaryContainer,
           foregroundColor: scheme.onSecondaryContainer,
-          title: '연결 상태를 확인해주세요',
-          description: '네트워크 상태가 불안정합니다. 연결을 확인한 뒤 다시 시도해주세요.',
+          title: '연결 상태를 확인해 주세요',
+          description: message,
         );
       case AuthErrorCode.socialUnavailable:
         return _LoginErrorState(
@@ -754,54 +758,11 @@ class _LoginErrorState {
   }
 }
 
-// ignore: unused_element
-class _SocialVisuals {
-  final String badgeText;
-  final String caption;
-  final Color badgeColor;
-  final Color foregroundColor;
-
-  const _SocialVisuals({
-    required this.badgeText,
-    required this.caption,
-    required this.badgeColor,
-    required this.foregroundColor,
-  });
-
-  // ignore: unused_element
-  factory _SocialVisuals.from(AuthProvider provider, ThemeData theme) {
-    return switch (provider) {
-      AuthProvider.google => const _SocialVisuals(
-        badgeText: 'G',
-        caption: '추천 복원',
-        badgeColor: Color(0xFF2563EB),
-        foregroundColor: Colors.white,
-      ),
-      AuthProvider.kakao => const _SocialVisuals(
-        badgeText: 'K',
-        caption: '간편 시작',
-        badgeColor: Color(0xFFFEE500),
-        foregroundColor: Color(0xFF111827),
-      ),
-      AuthProvider.apple => _SocialVisuals(
-        badgeText: 'A',
-        caption: '빠른 로그인',
-        badgeColor: theme.brightness == Brightness.light
-            ? const Color(0xFF111827)
-            : Colors.white,
-        foregroundColor: theme.brightness == Brightness.light
-            ? Colors.white
-            : const Color(0xFF111827),
-      ),
-    };
-  }
-}
-
 String _socialCaption(AuthProvider provider) {
   return switch (provider) {
-    AuthProvider.google => '추천 복원',
-    AuthProvider.kakao => '간편 시작',
-    AuthProvider.apple => '빠른 로그인',
+    AuthProvider.google => 'Google 계정 사용',
+    AuthProvider.kakao => 'Kakao 계정 사용',
+    AuthProvider.apple => 'Apple 계정 사용',
   };
 }
 

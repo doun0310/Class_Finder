@@ -12,10 +12,12 @@ import 'services/auth_repository.dart';
 import 'services/auth_service.dart';
 import 'services/social_auth_service.dart';
 import 'services/timetable_repository.dart';
+import 'services/runtime_config.dart';
 import 'theme/app_theme.dart';
 
 void main() {
-  const apiBaseUrl = String.fromEnvironment('API_BASE_URL');
+  const runtimeConfig = RuntimeConfig.fromEnvironment();
+  final apiBaseUrl = runtimeConfig.apiBaseUrl;
   final authRepo = apiBaseUrl.isEmpty
       ? LocalAuthRepository()
       : RemoteAuthRepository(ApiClient(baseUrl: apiBaseUrl));
@@ -24,10 +26,24 @@ void main() {
   runApp(
     MultiProvider(
       providers: [
+        Provider(create: (_) => runtimeConfig),
         ChangeNotifierProvider(
           create: (_) => AuthService(authRepo, socialAuth: socialAuth),
         ),
-        ChangeNotifierProvider(create: (_) => AppState()),
+        ChangeNotifierProxyProvider<AuthService, AppState>(
+          create: (_) => AppState(),
+          update: (_, auth, state) {
+            final appState = state ?? AppState();
+            final user = auth.user;
+            if (user != null) {
+              appState.syncAccountProfile(
+                major: user.department,
+                grade: user.grade,
+              );
+            }
+            return appState;
+          },
+        ),
         Provider<TimetableRepository>(
           create: (_) {
             if (apiBaseUrl.isEmpty) {

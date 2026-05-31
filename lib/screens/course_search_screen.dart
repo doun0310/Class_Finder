@@ -12,6 +12,7 @@ enum CourseScopeFilter {
   majorRequired,
   majorElective,
   coreLiberalArts,
+  balancedLiberalArts,
   generalElective,
 }
 
@@ -21,6 +22,7 @@ extension on CourseScopeFilter {
     CourseScopeFilter.majorRequired => '전공필수',
     CourseScopeFilter.majorElective => '전공선택',
     CourseScopeFilter.coreLiberalArts => '핵심교양',
+    CourseScopeFilter.balancedLiberalArts => '균형교양',
     CourseScopeFilter.generalElective => '일반교양',
   };
 
@@ -32,6 +34,8 @@ extension on CourseScopeFilter {
       course.category == CourseCategory.majorElective,
     CourseScopeFilter.coreLiberalArts =>
       course.category == CourseCategory.coreLiberalArts,
+    CourseScopeFilter.balancedLiberalArts =>
+      course.category == CourseCategory.balancedLiberalArts,
     CourseScopeFilter.generalElective =>
       course.category == CourseCategory.generalElective,
   };
@@ -65,6 +69,9 @@ class _CourseSearchScreenState extends State<CourseSearchScreen> {
       .length;
   late final int _coreLiberalArtsCount = realCourses
       .where((course) => course.category == CourseCategory.coreLiberalArts)
+      .length;
+  late final int _balancedLiberalArtsCount = realCourses
+      .where((course) => course.category == CourseCategory.balancedLiberalArts)
       .length;
   late final int _unscheduledCount = realCourses
       .where((course) => !course.hasTimeSlots)
@@ -129,6 +136,7 @@ class _CourseSearchScreenState extends State<CourseSearchScreen> {
     final majorRequiredCount = _majorRequiredCount;
     final majorElectiveCount = _majorElectiveCount;
     final coreLiberalArtsCount = _coreLiberalArtsCount;
+    final balancedLiberalArtsCount = _balancedLiberalArtsCount;
     final unscheduledCount = _unscheduledCount;
 
     return Scaffold(
@@ -179,9 +187,14 @@ class _CourseSearchScreenState extends State<CourseSearchScreen> {
                           color: AppTheme.cyan,
                         ),
                         _SummaryChip(
+                          icon: Icons.auto_stories_rounded,
+                          label: '균형교양 $balancedLiberalArtsCount개',
+                          color: AppTheme.leaf,
+                        ),
+                        _SummaryChip(
                           icon: Icons.event_busy_rounded,
                           label: '시간표 미지정 $unscheduledCount개',
-                          color: AppTheme.leaf,
+                          color: AppTheme.slate,
                         ),
                       ],
                     ),
@@ -536,7 +549,8 @@ class _CourseCard extends StatelessWidget {
                             CourseCategory.majorRequired => AppTheme.coral,
                             CourseCategory.majorElective => AppTheme.blue,
                             CourseCategory.coreLiberalArts => AppTheme.cyan,
-                            CourseCategory.generalElective => AppTheme.leaf,
+                            CourseCategory.balancedLiberalArts => AppTheme.leaf,
+                            CourseCategory.generalElective => AppTheme.slate,
                           },
                         ),
                         if (course.hasTeamProject)

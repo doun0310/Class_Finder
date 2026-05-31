@@ -35,6 +35,11 @@ migrate_working_dir/
 **/node_modules/
 backend/dist/
 backend/.env
+backend/.env.production
+android/social-login.properties
+android/key.properties
+android/keystore/
+ios/Flutter/SocialLogin.local.xcconfig
 
 # Symbolication related
 app.*.symbols

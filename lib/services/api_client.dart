@@ -1,8 +1,12 @@
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
 
-/// 백엔드 서버 통신을 위한 HTTP 클라이언트 (실 서버 연동 시 swap-in)
+/// 백엔드 서버와 통신하기 위한 공용 HTTP 클라이언트입니다.
 class ApiClient {
+  static const _networkErrorMessage =
+      '서버에 연결할 수 없습니다. 백엔드 실행 상태와 네트워크를 확인해 주세요.';
+
   final String baseUrl;
   final http.Client _client;
   String? _token;
@@ -27,9 +31,11 @@ class ApiClient {
   }
 
   Future<Map<String, dynamic>> get(String path, {bool withAuth = true}) async {
-    final res = await _client.get(
-      Uri.parse('$baseUrl$path'),
-      headers: _headers(withAuth: withAuth),
+    final res = await _send(
+      () => _client.get(
+        Uri.parse('$baseUrl$path'),
+        headers: _headers(withAuth: withAuth),
+      ),
     );
     return _decode(res);
   }
@@ -39,10 +45,12 @@ class ApiClient {
     Map<String, dynamic> body, {
     bool withAuth = true,
   }) async {
-    final res = await _client.post(
-      Uri.parse('$baseUrl$path'),
-      headers: _headers(withAuth: withAuth),
-      body: jsonEncode(body),
+    final res = await _send(
+      () => _client.post(
+        Uri.parse('$baseUrl$path'),
+        headers: _headers(withAuth: withAuth),
+        body: jsonEncode(body),
+      ),
     );
     return _decode(res);
   }
@@ -52,21 +60,33 @@ class ApiClient {
     Map<String, dynamic> body, {
     bool withAuth = true,
   }) async {
-    final res = await _client.patch(
-      Uri.parse('$baseUrl$path'),
-      headers: _headers(withAuth: withAuth),
-      body: jsonEncode(body),
+    final res = await _send(
+      () => _client.patch(
+        Uri.parse('$baseUrl$path'),
+        headers: _headers(withAuth: withAuth),
+        body: jsonEncode(body),
+      ),
     );
     return _decode(res);
   }
 
   Future<void> delete(String path, {bool withAuth = true}) async {
-    final res = await _client.delete(
-      Uri.parse('$baseUrl$path'),
-      headers: _headers(withAuth: withAuth),
+    final res = await _send(
+      () => _client.delete(
+        Uri.parse('$baseUrl$path'),
+        headers: _headers(withAuth: withAuth),
+      ),
     );
     if (res.statusCode >= 400) {
       throw ApiException(res.statusCode, _errorMessage(res));
+    }
+  }
+
+  Future<http.Response> _send(Future<http.Response> Function() request) async {
+    try {
+      return await request();
+    } on http.ClientException {
+      throw const ApiException(0, _networkErrorMessage);
     }
   }
 
@@ -97,6 +117,7 @@ class ApiClient {
 class ApiException implements Exception {
   final int statusCode;
   final String message;
+
   const ApiException(this.statusCode, this.message);
 
   @override

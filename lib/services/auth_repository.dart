@@ -180,7 +180,7 @@ class LocalAuthRepository implements AuthRepository {
         final seconds = lockedUntil.difference(now).inSeconds.clamp(1, 999);
         throw AuthException(
           AuthErrorCode.tooManyAttempts,
-          'Too many login attempts. Try again in ${seconds}s.',
+          '로그인 시도가 너무 많습니다. $seconds초 후 다시 시도해 주세요.',
         );
       }
     }
@@ -189,7 +189,7 @@ class LocalAuthRepository implements AuthRepository {
     if (record == null) {
       throw const AuthException(
         AuthErrorCode.userNotFound,
-        'This email is not registered.',
+        '가입되지 않은 이메일입니다.',
       );
     }
 
@@ -208,7 +208,7 @@ class LocalAuthRepository implements AuthRepository {
         await _writeAttempts(attempts);
         throw const AuthException(
           AuthErrorCode.tooManyAttempts,
-          'Too many login attempts. Try again in 30s.',
+          '로그인 시도가 너무 많습니다. 30초 후 다시 시도해 주세요.',
         );
       }
 
@@ -218,7 +218,7 @@ class LocalAuthRepository implements AuthRepository {
       final remaining = 5 - failureCount;
       throw AuthException(
         AuthErrorCode.wrongPassword,
-        'Wrong password. $remaining attempt(s) remaining before lockout.',
+        '비밀번호가 일치하지 않습니다. 잠금 전까지 $remaining회 남았습니다.',
       );
     }
 
@@ -269,7 +269,7 @@ class LocalAuthRepository implements AuthRepository {
               ? payload!.displayName!.trim()
               : provider.seedName,
       studentId: '20240000',
-      department: 'Computer Science',
+      department: '컴퓨터공학부',
       grade: 2,
       createdAt: DateTime.now(),
     );
@@ -303,13 +303,13 @@ class LocalAuthRepository implements AuthRepository {
     if (users.containsKey(emailKey)) {
       throw const AuthException(
         AuthErrorCode.emailAlreadyInUse,
-        'This email is already in use.',
+        '이미 사용 중인 이메일입니다.',
       );
     }
     if (password.length < 6) {
       throw const AuthException(
         AuthErrorCode.weakPassword,
-        'Password must be at least 6 characters.',
+        '비밀번호는 6자 이상이어야 합니다.',
       );
     }
 
@@ -341,7 +341,7 @@ class LocalAuthRepository implements AuthRepository {
   @override
   Future<String> requestPasswordReset({required String email}) async {
     await Future.delayed(const Duration(milliseconds: 650));
-    return 'If the email exists, password reset instructions have been sent.';
+    return '입력한 이메일이 등록되어 있다면 비밀번호 재설정 안내를 보냈습니다.';
   }
 
   @override
@@ -379,7 +379,7 @@ class LocalAuthRepository implements AuthRepository {
     if (!users.containsKey(emailKey)) {
       throw const AuthException(
         AuthErrorCode.userNotFound,
-        'User not found.',
+        '사용자 정보를 찾을 수 없습니다.',
       );
     }
 
@@ -462,7 +462,7 @@ class RemoteAuthRepository implements AuthRepository {
         'email': email,
       }, withAuth: false);
       return response['message'] as String? ??
-          'If the email exists, password reset instructions have been sent.';
+          '입력한 이메일이 등록되어 있다면 비밀번호 재설정 안내를 보냈습니다.';
     } on ApiException catch (error) {
       throw _mapApiException(error);
     }
@@ -474,7 +474,7 @@ class RemoteAuthRepository implements AuthRepository {
     try {
       await client.post('/auth/signout', {});
     } on ApiException {
-      // Clear the local session even if the server session is already gone.
+      // 서버 세션이 이미 만료됐더라도 로컬 세션은 정리합니다.
     } finally {
       client.setToken(null);
       await _clearSession();
@@ -550,6 +550,11 @@ class RemoteAuthRepository implements AuthRepository {
     AuthProvider? provider,
   }) {
     switch (error.statusCode) {
+      case 0:
+        return const AuthException(
+          AuthErrorCode.network,
+          '서버에 연결할 수 없습니다. 백엔드 실행 상태와 네트워크를 확인해 주세요.',
+        );
       case 400:
         if (error.message.toLowerCase().contains('password')) {
           return const AuthException(
@@ -576,7 +581,7 @@ class RemoteAuthRepository implements AuthRepository {
       case 429:
         return const AuthException(
           AuthErrorCode.tooManyAttempts,
-          '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요.',
+          '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.',
         );
       case 503:
         return AuthException(
@@ -584,7 +589,7 @@ class RemoteAuthRepository implements AuthRepository {
           '${provider?.label ?? '소셜'} 로그인을 지금 사용할 수 없습니다.',
         );
       default:
-        return AuthException(AuthErrorCode.network, error.message);
+        return AuthException(AuthErrorCode.unknown, error.message);
     }
   }
 }

@@ -90,7 +90,7 @@ class _SplashScreenState extends State<SplashScreen>
                     borderRadius: BorderRadius.circular(28),
                   ),
                   child: Icon(
-                    Icons.auto_awesome_rounded,
+                    Icons.calendar_month_rounded,
                     size: 48,
                     color: scheme.primary,
                   ),
@@ -104,7 +104,7 @@ class _SplashScreenState extends State<SplashScreen>
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '선호 조건을 읽고 가장 잘 맞는 시간표를 찾습니다.',
+                  '강의와 저장한 시간표를 불러오고 있습니다.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Colors.white.withValues(alpha: 0.82),
                   ),

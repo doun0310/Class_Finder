@@ -2,6 +2,7 @@ import 'package:class_finder/screens/auth/login_screen.dart';
 import 'package:class_finder/screens/auth/signup_screen.dart';
 import 'package:class_finder/services/auth_repository.dart';
 import 'package:class_finder/services/auth_service.dart';
+import 'package:class_finder/services/runtime_config.dart';
 import 'package:class_finder/services/social_auth_service.dart';
 import 'package:class_finder/theme/app_theme.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +14,7 @@ void main() {
   Widget buildAuthHarness(Widget child, WidgetTester tester) {
     return MultiProvider(
       providers: [
+        Provider(create: (_) => const RuntimeConfig(apiBaseUrl: '')),
         ChangeNotifierProvider(
           create: (_) => AuthService(
             LocalAuthRepository(),

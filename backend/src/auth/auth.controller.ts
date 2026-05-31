@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Headers, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  HttpCode,
+  HttpStatus,
+  Patch,
+  Post,
+} from '@nestjs/common';
 
 import { AuthService } from './auth.service';
 import { PasswordResetDto } from './dto/password-reset.dto';
@@ -17,21 +26,25 @@ export class AuthController {
   }
 
   @Post('signin')
+  @HttpCode(HttpStatus.OK)
   signIn(@Body() body: SignInDto) {
     return this.authService.signIn(body);
   }
 
   @Post('social-signin')
+  @HttpCode(HttpStatus.OK)
   signInWithProvider(@Body() body: SocialSignInDto) {
     return this.authService.signInWithProvider(body);
   }
 
   @Post('password-reset')
+  @HttpCode(HttpStatus.OK)
   requestPasswordReset(@Body() body: PasswordResetDto) {
     return this.authService.requestPasswordReset(body);
   }
 
   @Post('signout')
+  @HttpCode(HttpStatus.OK)
   signOut(@Headers('authorization') authorization?: string) {
     return this.authService.signOut(authorization);
   }

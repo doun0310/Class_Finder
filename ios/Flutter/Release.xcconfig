@@ -1,1 +1,3 @@
 #include "Generated.xcconfig"
+#include "SocialLogin.defaults.xcconfig"
+#include? "SocialLogin.local.xcconfig"

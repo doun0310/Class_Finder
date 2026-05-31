@@ -11,7 +11,6 @@ NestJS + Prisma + PostgreSQL backend for timetable persistence.
 - `POST /auth/signout`
 - `GET /auth/me`
 - `PATCH /auth/me`
-- `POST /users/sync`
 - `GET /users/:userId/timetables`
 - `POST /users/:userId/timetables`
 - `PATCH /users/:userId/timetables/:id`
@@ -32,6 +31,14 @@ npm install
 copy .env.example .env
 ```
 
+For production deployment, start from:
+
+```bash
+copy .env.production.example .env.production
+```
+
+Then replace the placeholder values with the real production database and frontend origin.
+
 3. Start PostgreSQL.
 
 ```bash
@@ -51,6 +58,16 @@ npm run start:dev
 ```
 
 The API listens on `http://localhost:3001` by default.
+
+## Test
+
+Run the backend API regression tests with:
+
+```bash
+npm run test:e2e
+```
+
+These tests run against an in-memory Prisma mock, so PostgreSQL does not need to be running.
 
 ## Auto Start With Flutter
 

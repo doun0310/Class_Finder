@@ -407,8 +407,8 @@ class _HeroIdentity extends StatelessWidget {
                     label: user.department,
                   ),
                   _HeroChip(
-                    icon: Icons.auto_awesome_rounded,
-                    label: '${user.grade}학년 개인화 프로필',
+                    icon: Icons.badge_outlined,
+                    label: '${user.grade}학년 등록 정보',
                   ),
                 ],
               ),

@@ -15,21 +15,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   static const _pages = [
     _OnboardingPageData(
-      icon: Icons.auto_awesome_rounded,
-      title: 'AI 시간표 매칭',
-      description: '유전 알고리즘으로 수십만 개의 조합 중에서\n당신에게 가장 잘 맞는 시간표를 찾아드립니다.',
+      icon: Icons.schedule_rounded,
+      title: '조건에 맞는 시간표 찾기',
+      description: '선택한 과목과 선호 조건을 바탕으로\n겹치지 않는 시간표를 빠르게 정리해 드립니다.',
       color: Color(0xFF3B6BFF),
     ),
     _OnboardingPageData(
       icon: Icons.tune_rounded,
-      title: '세밀한 맞춤 설정',
-      description: '공강 요일, 점심시간, 시작/종료 시간,\n팀플 기피까지 — 당신의 취향대로 시간표가 짜입니다.',
+      title: '원하는 기준 설정',
+      description: '공강 요일, 점심시간, 시작·종료 시간,\n팀프로젝트 여부까지 필요에 맞게 조정할 수 있습니다.',
       color: Color(0xFF14B8A6),
     ),
     _OnboardingPageData(
       icon: Icons.bookmark_rounded,
       title: '저장하고 비교하기',
-      description: '마음에 드는 시간표를 저장해두고\n언제든 다시 꺼내보세요. 5개의 추천 결과를 비교할 수 있어요.',
+      description: '마음에 드는 시간표를 저장해 두고\n언제든 다시 꺼내 보세요. 여러 결과를 나란히 비교할 수 있습니다.',
       color: Color(0xFFF59E0B),
     ),
   ];

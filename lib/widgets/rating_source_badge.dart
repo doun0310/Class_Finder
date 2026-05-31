@@ -22,7 +22,7 @@ class RatingSourceBadge extends StatelessWidget {
       RatingSource.reviewBacked => AppTheme.leaf,
     };
     final icon = switch (source) {
-      RatingSource.officialEstimate => Icons.auto_awesome_rounded,
+      RatingSource.officialEstimate => Icons.analytics_rounded,
       RatingSource.userInput => Icons.edit_note_rounded,
       RatingSource.reviewBacked => Icons.verified_rounded,
     };

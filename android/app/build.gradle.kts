@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -6,6 +8,30 @@ plugins {
 }
 
 android {
+    val socialLoginProperties = Properties()
+    val socialLoginPropertiesFile = rootProject.file("social-login.properties")
+    if (socialLoginPropertiesFile.exists()) {
+        socialLoginPropertiesFile.inputStream().use { stream ->
+            socialLoginProperties.load(stream)
+        }
+    }
+
+    val keyProperties = Properties()
+    val keyPropertiesFile = rootProject.file("key.properties")
+    if (keyPropertiesFile.exists()) {
+        keyPropertiesFile.inputStream().use { stream ->
+            keyProperties.load(stream)
+        }
+    }
+    val hasReleaseSigning = listOf(
+        "storeFile",
+        "storePassword",
+        "keyAlias",
+        "keyPassword",
+    ).all { name ->
+        !keyProperties.getProperty(name).isNullOrBlank()
+    }
+
     namespace = "com.maiyard.class_finder"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
@@ -28,13 +54,31 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["kakaoScheme"] = socialLoginProperties.getProperty(
+            "kakaoScheme",
+            "classfinder-kakao-disabled",
+        )
+    }
+
+    signingConfigs {
+        create("release") {
+            if (hasReleaseSigning) {
+                storeFile = rootProject.file(keyProperties.getProperty("storeFile"))
+                storePassword = keyProperties.getProperty("storePassword")
+                keyAlias = keyProperties.getProperty("keyAlias")
+                keyPassword = keyProperties.getProperty("keyPassword")
+            }
+        }
     }
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Keep debug signing only for local smoke builds.
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }

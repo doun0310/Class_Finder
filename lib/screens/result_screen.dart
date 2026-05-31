@@ -58,11 +58,7 @@ class ResultScreen extends StatelessWidget {
     }
 
     try {
-      await repository.save(
-        user: user,
-        name: name,
-        timetable: timetable,
-      );
+      await repository.save(user: user, name: name, timetable: timetable);
     } on TimetableRepositoryException catch (error) {
       if (context.mounted) {
         ScaffoldMessenger.of(
@@ -706,8 +702,10 @@ class _CourseList extends StatelessWidget {
                                       AppTheme.blue,
                                     CourseCategory.coreLiberalArts =>
                                       AppTheme.cyan,
-                                    CourseCategory.generalElective =>
+                                    CourseCategory.balancedLiberalArts =>
                                       AppTheme.leaf,
+                                    CourseCategory.generalElective =>
+                                      AppTheme.slate,
                                   },
                                 ),
                                 if (course.hasTeamProject) ...[

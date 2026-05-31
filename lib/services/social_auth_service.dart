@@ -44,7 +44,7 @@ class DeviceSocialAuthService implements SocialAuthGateway {
         'Google 로그인 설정이 없습니다. '
         '`GOOGLE_SERVER_CLIENT_ID`를 추가하고, '
         'Android는 Google Cloud 또는 Firebase에 패키지명과 SHA-1/SHA-256을 등록해야 합니다. '
-        'iOS는 `GOOGLE_IOS_CLIENT_ID`와 reversed client id URL scheme가 필요합니다.',
+        'iOS는 `GOOGLE_IOS_CLIENT_ID`와 reversed client id URL scheme이 필요합니다.',
       );
     }
 
@@ -77,7 +77,7 @@ class DeviceSocialAuthService implements SocialAuthGateway {
     if ((authentication.idToken ?? '').isEmpty) {
       throw const AuthException(
         AuthErrorCode.socialUnavailable,
-        'Google ID 토큰을 받지 못했습니다. 서버용 OAuth 설정을 다시 확인해주세요.',
+        'Google ID 토큰을 받지 못했습니다. 서버와 OAuth 설정을 다시 확인해 주세요.',
       );
     }
 

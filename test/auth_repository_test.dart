@@ -30,7 +30,7 @@ void main() {
       );
 
       expect(unknownMessage, existingMessage);
-      expect(unknownMessage, contains('If the email exists'));
+      expect(unknownMessage, contains('등록되어 있다면'));
     });
 
     test('locks sign in after repeated wrong password attempts', () async {

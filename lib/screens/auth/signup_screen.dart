@@ -3,8 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../services/auth_service.dart';
+import '../../services/runtime_config.dart';
 import '../../widgets/app_text_field.dart';
 import '../../widgets/auth_shell.dart';
+import '../../widgets/runtime_mode_notice.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -21,12 +23,12 @@ class _SignupScreenState extends State<SignupScreen> {
   final _name = TextEditingController();
   final _studentId = TextEditingController();
 
-  String _department = '컴퓨터공학과';
+  String _department = '컴퓨터공학부';
   int _grade = 1;
 
   static const _departments = [
-    '컴퓨터공학과',
-    '소프트웨어학과',
+    '컴퓨터공학부',
+    '소프트웨어공학과',
     '전자공학과',
     '기계공학과',
     '경영학과',
@@ -74,38 +76,39 @@ class _SignupScreenState extends State<SignupScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final auth = context.watch<AuthService>();
+    final runtimeConfig = context.watch<RuntimeConfig>();
 
     return AuthShell(
-      badge: 'New Account Setup',
-      title: '맞춤 추천을 위한 계정 만들기',
-      subtitle: '프로필 정보까지 한 번에 설정해두면 학년과 전공에 맞는 추천 흐름을 더 자연스럽게 이어갈 수 있습니다.',
-      heroTitle: '프로필까지 연결된\n개인화 시간표 시작점',
-      heroSubtitle: '학과, 학년, 학번 정보를 함께 설정해두면 저장 시간표와 추천 조건을 더 일관되게 관리할 수 있습니다.',
+      badge: '회원가입',
+      title: '새 계정을 만들어 주세요',
+      subtitle: '기본 정보를 입력하면 시간표 저장과 계정 관리를 바로 시작할 수 있습니다.',
+      heroTitle: '학기 동안 계속 쓰는\n내 시간표 계정',
+      heroSubtitle: '학과, 학년, 학번 정보를 등록해 두면 저장한 시간표와 계정 정보를 한곳에서 관리할 수 있습니다.',
       icon: Icons.person_add_alt_1_rounded,
       features: const [
         AuthFeatureItem(
           icon: Icons.tune_rounded,
-          title: '개인화 추천 기반 준비',
-          description: '학년과 전공에 맞는 조건 설정 흐름을 더 자연스럽게 이어갑니다.',
+          title: '기본 정보 등록',
+          description: '학과와 학년 정보를 입력해 계정 구성을 마칩니다.',
         ),
         AuthFeatureItem(
           icon: Icons.sync_rounded,
-          title: '저장 데이터 일관성 유지',
-          description: '로그인 이후에도 저장한 시간표와 추천 결과를 같은 프로필로 관리합니다.',
+          title: '저장 내용 함께 관리',
+          description: '저장한 시간표와 계정 정보를 같은 계정으로 유지합니다.',
         ),
         AuthFeatureItem(
-          icon: Icons.hub_rounded,
-          title: '학기별 관리 흐름 확장',
-          description: '이후 기능이 늘어나도 한 계정에서 설정과 결과를 계속 연결할 수 있습니다.',
+          icon: Icons.devices_rounded,
+          title: '기기 변경에도 유지',
+          description: '다른 기기에서 로그인해도 같은 정보로 이어서 사용할 수 있습니다.',
         ),
       ],
       metrics: const [
-        AuthMetricItem(value: '학과/학년', label: '추천 맥락 반영'),
-        AuthMetricItem(value: '1회 설정', label: '온보딩 완료'),
-        AuthMetricItem(value: '지속형', label: '프로필 기반 사용'),
+        AuthMetricItem(value: '학과/학년', label: '기본 정보'),
+        AuthMetricItem(value: '1회 입력', label: '초기 설정'),
+        AuthMetricItem(value: '계정 기반', label: '저장 내용 관리'),
       ],
       footer: Text(
-        '가입을 완료하면 바로 홈으로 이동하며, 이후 추천과 저장 기능을 계정 기반으로 사용할 수 있습니다.',
+        '가입을 완료하면 바로 홈으로 이동하고, 이후 저장 기능과 계정 관리를 계속 사용할 수 있습니다.',
         style: theme.textTheme.bodySmall?.copyWith(
           color: theme.colorScheme.onSurfaceVariant,
         ),
@@ -134,7 +137,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Icon(
-                      Icons.auto_awesome_rounded,
+                      Icons.assignment_ind_rounded,
                       size: 20,
                       color: theme.colorScheme.onPrimaryContainer,
                     ),
@@ -145,7 +148,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '프로필 기반 추천 시작',
+                          '기본 정보 등록',
                           style: theme.textTheme.titleSmall?.copyWith(
                             color: theme.colorScheme.onPrimaryContainer,
                             fontWeight: FontWeight.w800,
@@ -153,7 +156,7 @@ class _SignupScreenState extends State<SignupScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '입력한 정보는 계정 구성과 추천 흐름 연결에 사용됩니다.',
+                          '입력한 정보는 계정 생성과 저장 정보 구분에 사용됩니다.',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onPrimaryContainer
                                 .withValues(alpha: 0.82),
@@ -165,6 +168,8 @@ class _SignupScreenState extends State<SignupScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: 14),
+            RuntimeModeNotice(config: runtimeConfig),
             if (auth.lastError != null) ...[
               const SizedBox(height: 14),
               Container(
@@ -194,7 +199,7 @@ class _SignupScreenState extends State<SignupScreen> {
               onChanged: (_) => _clearAuthError(),
               validator: (value) {
                 if (value == null || value.isEmpty) {
-                  return '이메일을 입력해주세요';
+                  return '이메일을 입력해 주세요';
                 }
                 if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+').hasMatch(value)) {
                   return '올바른 이메일 형식이 아닙니다';
@@ -211,7 +216,7 @@ class _SignupScreenState extends State<SignupScreen> {
               onChanged: (_) => _clearAuthError(),
               validator: (value) {
                 if (value == null || value.length < 6) {
-                  return '비밀번호를 6자 이상 입력해주세요';
+                  return '비밀번호를 6자 이상 입력해 주세요';
                 }
                 return null;
               },
@@ -240,7 +245,7 @@ class _SignupScreenState extends State<SignupScreen> {
               onChanged: (_) => _clearAuthError(),
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
-                  return '이름을 입력해주세요';
+                  return '이름을 입력해 주세요';
                 }
                 return null;
               },
@@ -256,7 +261,7 @@ class _SignupScreenState extends State<SignupScreen> {
               onChanged: (_) => _clearAuthError(),
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
-                  return '학번을 입력해주세요';
+                  return '학번을 입력해 주세요';
                 }
                 if (value.length < 6) {
                   return '학번은 6자리 이상이어야 합니다';

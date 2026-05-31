@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 
 class MatchingLoadingOverlay extends StatefulWidget {
@@ -20,11 +18,11 @@ class MatchingLoadingOverlay extends StatefulWidget {
 class _MatchingLoadingOverlayState extends State<MatchingLoadingOverlay>
     with SingleTickerProviderStateMixin {
   static const _steps = [
-    '강의 데이터를 정리하고 있어요.',
-    '초기 시간표 후보를 생성하고 있어요.',
-    '제약 조건을 만족하는 조합을 탐색하고 있어요.',
-    '공강과 평점 기준으로 점수를 다시 보정하고 있어요.',
-    '상위 추천 시간표를 정리하고 있어요.',
+    '선택한 강의를 확인하고 있어요.',
+    '시간이 겹치지 않는 분반을 정리하고 있어요.',
+    '조건에 맞는 시간표를 고르고 있어요.',
+    '공강과 이동 흐름을 살펴보고 있어요.',
+    '결과를 화면에 맞게 정리하고 있어요.',
   ];
 
   late final AnimationController _controller;
@@ -55,16 +53,16 @@ class _MatchingLoadingOverlayState extends State<MatchingLoadingOverlay>
       return;
     }
 
-    final expectedMs = max(120, _normalizedExpectedDuration.inMilliseconds);
+    final expectedMs = _normalizedExpectedDuration.inMilliseconds;
     final elapsedMs = _stopwatch.elapsedMilliseconds;
     final rawProgress = elapsedMs / expectedMs;
     final easedProgress = rawProgress <= 1
         ? rawProgress * 0.9
-        : 0.9 + min(0.08, (rawProgress - 1) * 0.04);
+        : 0.9 + ((rawProgress - 1) * 0.04).clamp(0.0, 0.08);
     final nextProgress = easedProgress.clamp(0.08, 0.98);
-    final nextStep = min(
+    final nextStep = ((nextProgress * _steps.length).floor()).clamp(
+      0,
       _steps.length - 1,
-      (nextProgress * _steps.length).floor(),
     );
 
     setState(() {
@@ -99,9 +97,9 @@ class _MatchingLoadingOverlayState extends State<MatchingLoadingOverlay>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _AnimatedHelix(controller: _controller),
+              _AnimatedStatusGlyph(controller: _controller),
               const SizedBox(height: 22),
-              Text('시간표를 조합하는 중입니다.', style: theme.textTheme.titleLarge),
+              Text('시간표를 준비하고 있습니다.', style: theme.textTheme.titleLarge),
               const SizedBox(height: 8),
               Text(
                 '예상 약 ${_formatDuration(widget.expectedDuration ?? _normalizedExpectedDuration)}',
@@ -140,67 +138,59 @@ class _MatchingLoadingOverlayState extends State<MatchingLoadingOverlay>
   }
 }
 
-class _AnimatedHelix extends StatelessWidget {
+class _AnimatedStatusGlyph extends StatelessWidget {
   final AnimationController controller;
 
-  const _AnimatedHelix({required this.controller});
+  const _AnimatedStatusGlyph({required this.controller});
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
     return AnimatedBuilder(
       animation: controller,
       builder: (context, child) {
-        return CustomPaint(
-          size: const Size(80, 80),
-          painter: _HelixPainter(
-            progress: controller.value,
-            color: Theme.of(context).colorScheme.primary,
+        final pulse = 0.92 + (controller.value * 0.12);
+        final opacity = 0.18 + (controller.value * 0.12);
+
+        return SizedBox(
+          width: 88,
+          height: 88,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Transform.scale(
+                scale: pulse,
+                child: Container(
+                  width: 88,
+                  height: 88,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: scheme.primary.withValues(alpha: opacity),
+                  ),
+                ),
+              ),
+              Container(
+                width: 68,
+                height: 68,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: scheme.primaryContainer,
+                  border: Border.all(
+                    color: scheme.primary.withValues(alpha: 0.22),
+                  ),
+                ),
+                child: Icon(
+                  Icons.calendar_month_rounded,
+                  size: 34,
+                  color: scheme.onPrimaryContainer,
+                ),
+              ),
+            ],
           ),
         );
       },
     );
-  }
-}
-
-class _HelixPainter extends CustomPainter {
-  final double progress;
-  final Color color;
-
-  _HelixPainter({required this.progress, required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final stroke = Paint()
-      ..strokeWidth = 3
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    final fill = Paint()..style = PaintingStyle.fill;
-
-    const steps = 22;
-    final centerX = size.width / 2;
-    final centerY = size.height / 2;
-
-    for (int i = 0; i < steps; i++) {
-      final fraction = i / (steps - 1);
-      final angle = (fraction + progress) * pi * 4;
-      final y = centerY + (fraction - 0.5) * size.height * 0.8;
-      final x1 = centerX + cos(angle) * 20;
-      final x2 = centerX + cos(angle + pi) * 20;
-
-      stroke.color = color.withValues(alpha: 0.28 + 0.58 * fraction);
-      canvas.drawLine(Offset(x1, y), Offset(x2, y), stroke);
-
-      if (i.isEven) {
-        fill.color = color.withValues(alpha: 0.8);
-        canvas.drawCircle(Offset(x1, y), 3, fill);
-        canvas.drawCircle(Offset(x2, y), 3, fill);
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _HelixPainter oldDelegate) {
-    return oldDelegate.progress != progress || oldDelegate.color != color;
   }
 }
 

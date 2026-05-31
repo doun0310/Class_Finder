@@ -2,7 +2,9 @@ import 'package:class_finder/main.dart';
 import 'package:class_finder/services/app_state.dart';
 import 'package:class_finder/services/auth_repository.dart';
 import 'package:class_finder/services/auth_service.dart';
+import 'package:class_finder/services/runtime_config.dart';
 import 'package:class_finder/services/social_auth_service.dart';
+import 'package:class_finder/services/timetable_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
@@ -11,6 +13,7 @@ void main() {
     await tester.pumpWidget(
       MultiProvider(
         providers: [
+          Provider(create: (_) => const RuntimeConfig(apiBaseUrl: '')),
           ChangeNotifierProvider(
             create: (_) => AuthService(
               LocalAuthRepository(),
@@ -18,6 +21,9 @@ void main() {
             ),
           ),
           ChangeNotifierProvider(create: (_) => AppState()),
+          Provider<TimetableRepository>(
+            create: (_) => const LocalTimetableRepository(),
+          ),
         ],
         child: const ClassFinderApp(),
       ),
@@ -26,6 +32,7 @@ void main() {
     expect(find.text('ClassFinder'), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 1600));
     await tester.pump();
+    expect(tester.takeException(), isNull);
   });
 }
 

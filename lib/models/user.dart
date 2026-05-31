@@ -52,6 +52,6 @@ class User {
     createdAt: DateTime.parse(j['createdAt'] as String),
   );
 
-  /// 이니셜 (아바타용): 이름 첫글자
+  /// 아바타나 배지에 표시할 이름 첫 글자입니다.
   String get initial => name.isEmpty ? '?' : name.substring(0, 1);
 }

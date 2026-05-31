@@ -9,6 +9,16 @@ List<Timetable> _gaIsolateEntry(_GAPayload payload) {
   return GeneticAlgorithmService().run(payload.courses, payload.preference);
 }
 
+bool _isEligibleMatchingCourse(Course course, UserPreference preference) {
+  if (!course.hasTimeSlots) {
+    return false;
+  }
+  if (course.category.isMajor) {
+    return course.grade == 0 || course.grade == preference.grade;
+  }
+  return true;
+}
+
 class _GAPayload {
   final List<Course> courses;
   final UserPreference preference;
@@ -36,6 +46,18 @@ class AppState extends ChangeNotifier {
 
   void updatePref(UserPreference preference) {
     _preference = preference;
+    notifyListeners();
+  }
+
+  void syncAccountProfile({required String major, required int grade}) {
+    final normalizedMajor = major.trim().isEmpty
+        ? _preference.major
+        : major.trim();
+    if (_preference.major == normalizedMajor && _preference.grade == grade) {
+      return;
+    }
+
+    _preference = _preference.copyWith(major: normalizedMajor, grade: grade);
     notifyListeners();
   }
 
@@ -70,11 +92,7 @@ class AppState extends ChangeNotifier {
     UserPreference preference,
   ) {
     final eligibleCount = courses
-        .where(
-          (course) =>
-              course.hasTimeSlots &&
-              (course.grade == 0 || course.grade <= preference.grade),
-        )
+        .where((course) => _isEligibleMatchingCourse(course, preference))
         .length;
     final fixedCount = _fixedCourseCount(courses, preference);
     final heuristicMs =
@@ -100,11 +118,7 @@ class AppState extends ChangeNotifier {
     Duration duration,
   ) {
     final eligibleCount = courses
-        .where(
-          (course) =>
-              course.hasTimeSlots &&
-              (course.grade == 0 || course.grade <= preference.grade),
-        )
+        .where((course) => _isEligibleMatchingCourse(course, preference))
         .length;
     final bucket = _timingBucket(courses, eligibleCount, preference);
     final currentMs = duration.inMilliseconds.toDouble();

@@ -1,4 +1,5 @@
 import '../models/course.dart';
+import 'balanced_liberal_arts_data.dart';
 
 List<TimeSlot> _parseTimeSlots(String schedule) {
   final normalized = schedule.replaceAll(' / ', ', ').replaceAll('~', '-');
@@ -40,6 +41,51 @@ class _CourseTemplate {
     required this.grade,
   });
 }
+
+class _BalancedLiberalArtsSeed {
+  final String area;
+  final String name;
+  final int credit;
+  final String professor;
+  final String schedule;
+
+  const _BalancedLiberalArtsSeed({
+    required this.area,
+    required this.name,
+    required this.credit,
+    required this.professor,
+    required this.schedule,
+  });
+
+  factory _BalancedLiberalArtsSeed.fromLine(String line) {
+    final parts = line.split('|');
+    return _BalancedLiberalArtsSeed(
+      area: parts[0],
+      name: parts[1],
+      credit: int.parse(parts[2]),
+      professor: parts[3],
+      schedule: parts[4],
+    );
+  }
+}
+
+final _balancedLiberalArtsSeeds = balancedLiberalArtsRaw
+    .trim()
+    .split('\n')
+    .where((line) => line.trim().isNotEmpty)
+    .map(_BalancedLiberalArtsSeed.fromLine)
+    .toList(growable: false);
+
+const _balancedAreaBaseRatings = <String, double>{
+  '문학과문화': 3.8,
+  '역사와철학': 3.7,
+  '인간과사회': 3.9,
+  '생명과환경': 4.0,
+  '과학과기술': 3.9,
+  '예술과체육': 4.1,
+  '융·복합': 4.0,
+  '진로와개척': 4.1,
+};
 
 // Ratings are calibrated heuristics based on public GNU course/curriculum pages.
 const _templates = <String, _CourseTemplate>{
@@ -532,6 +578,199 @@ Course _buildCourseWithoutSchedule(
     grade: template.grade,
     timeSlots: const [],
   );
+}
+
+bool _containsAnyKeyword(String value, List<String> keywords) =>
+    keywords.any(value.contains);
+
+double _estimateBalancedLiberalArtsRating(_BalancedLiberalArtsSeed seed) {
+  var rating = _balancedAreaBaseRatings[seed.area] ?? 3.9;
+
+  if (_containsAnyKeyword(seed.name, const [
+    '창업',
+    '진로',
+    '취업',
+    '실무',
+    '체험',
+    '행복',
+    '심리학',
+    '여행',
+    '스포츠',
+    '문화산업',
+    '게임',
+    '사진',
+    '콘텐츠',
+    '영화',
+  ])) {
+    rating += 0.18;
+  }
+
+  if (_containsAnyKeyword(seed.name, const [
+    '수학',
+    '통계',
+    '머신러닝',
+    '과학기술',
+    '법',
+    '윤리',
+    '철학',
+    '경제학',
+    '정치',
+    '환경',
+    '전략',
+    '탄소',
+  ])) {
+    rating -= 0.08;
+  }
+
+  if (_containsAnyKeyword(seed.name, const [
+    '인성',
+    '교양생활중국어',
+    '실무영어',
+    '공학윤리',
+    '공학과경영',
+    '기술창업',
+    '기업가정신',
+  ])) {
+    rating += 0.06;
+  }
+
+  if (seed.credit == 1) {
+    rating += 0.08;
+  }
+  if (seed.schedule.contains('22:00')) {
+    rating -= 0.05;
+  }
+
+  return ((rating.clamp(3.4, 4.5) * 10).round() / 10).toDouble();
+}
+
+int _estimateBalancedLiberalArtsDifficulty(_BalancedLiberalArtsSeed seed) {
+  var difficulty = switch (seed.area) {
+    '예술과체육' => 1,
+    '진로와개척' => 2,
+    '문학과문화' => 2,
+    '인간과사회' => 2,
+    '생명과환경' => 2,
+    '역사와철학' => 3,
+    '과학과기술' => 3,
+    '융·복합' => 3,
+    _ => 2,
+  };
+
+  if (_containsAnyKeyword(seed.name, const [
+    '수학',
+    '통계',
+    '머신러닝',
+    '법',
+    '윤리',
+    '철학',
+    '경제학',
+    '정치',
+    '환경',
+    '전략',
+  ])) {
+    difficulty += 1;
+  }
+
+  if (_containsAnyKeyword(seed.name, const [
+    '스포츠',
+    '영화',
+    '여행',
+    '행복심리학',
+    '인성',
+    '체험',
+    '사진',
+    '게임',
+  ])) {
+    difficulty -= 1;
+  }
+
+  if (seed.credit >= 3) {
+    difficulty += 1;
+  }
+
+  return difficulty.clamp(1, 5);
+}
+
+bool _hasBalancedLiberalArtsTeamProject(_BalancedLiberalArtsSeed seed) {
+  return _containsAnyKeyword(seed.name, const [
+    '설계',
+    '시뮬레이션',
+    '창업',
+    '기록하기',
+    '콘텐츠기획',
+    '소셜이노베이션',
+    '창의적문제해결기법',
+    '발명과혁신',
+  ]);
+}
+
+String _balancedLiberalArtsCode(int index) =>
+    'BLIB${index.toString().padLeft(3, '0')}';
+
+Course _buildBalancedLiberalArtsCourse(
+  _BalancedLiberalArtsSeed seed,
+  _CourseTemplate template,
+  String code,
+  int sectionNumber,
+) {
+  return Course(
+    id: '$code-${sectionNumber.toString().padLeft(3, '0')}',
+    name: template.name,
+    professor: seed.professor,
+    credit: template.credit,
+    rating: template.rating,
+    ratingSource: template.ratingSource,
+    difficulty: template.difficulty,
+    hasTeamProject: template.hasTeamProject,
+    isMajorRequired: template.isMajorRequired,
+    category: template.category,
+    grade: template.grade,
+    timeSlots: _parseTimeSlots(seed.schedule),
+  );
+}
+
+List<Course> _buildBalancedLiberalArtsCourses() {
+  final uniqueNames =
+      _balancedLiberalArtsSeeds.map((seed) => seed.name).toSet().toList()
+        ..sort();
+  final codeByName = <String, String>{
+    for (final entry in uniqueNames.asMap().entries)
+      entry.value: _balancedLiberalArtsCode(entry.key + 1),
+  };
+  final templateByName = <String, _CourseTemplate>{
+    for (final name in uniqueNames)
+      name: () {
+        final seed = _balancedLiberalArtsSeeds.firstWhere(
+          (candidate) => candidate.name == name,
+        );
+        return _CourseTemplate(
+          name: seed.name,
+          credit: seed.credit,
+          rating: _estimateBalancedLiberalArtsRating(seed),
+          difficulty: _estimateBalancedLiberalArtsDifficulty(seed),
+          hasTeamProject: _hasBalancedLiberalArtsTeamProject(seed),
+          isMajorRequired: false,
+          category: CourseCategory.balancedLiberalArts,
+          grade: 0,
+        );
+      }(),
+  };
+  final sectionCounters = <String, int>{};
+
+  return [
+    for (final seed in _balancedLiberalArtsSeeds)
+      _buildBalancedLiberalArtsCourse(
+        seed,
+        templateByName[seed.name]!,
+        codeByName[seed.name]!,
+        sectionCounters.update(
+          seed.name,
+          (count) => count + 1,
+          ifAbsent: () => 1,
+        ),
+      ),
+  ];
 }
 
 final realCourses = <Course>[
@@ -1437,4 +1676,5 @@ final realCourses = <Course>[
     '\uc218 16:00-18:00',
   ),
   _buildCourse('CDIGLIFEAI', '007', '\ubbf8\uc815', '\uc218 09:00-11:00'),
+  ..._buildBalancedLiberalArtsCourses(),
 ];

@@ -4,6 +4,7 @@ enum CourseCategory {
   majorRequired,
   majorElective,
   coreLiberalArts,
+  balancedLiberalArts,
   generalElective,
 }
 
@@ -14,12 +15,15 @@ extension CourseCategoryX on CourseCategory {
     CourseCategory.majorRequired => '전공필수',
     CourseCategory.majorElective => '전공선택',
     CourseCategory.coreLiberalArts => '핵심교양',
+    CourseCategory.balancedLiberalArts => '균형교양',
     CourseCategory.generalElective => '일반교양',
   };
 
   bool get isMajor => switch (this) {
     CourseCategory.majorRequired || CourseCategory.majorElective => true,
-    CourseCategory.coreLiberalArts || CourseCategory.generalElective => false,
+    CourseCategory.coreLiberalArts ||
+    CourseCategory.balancedLiberalArts ||
+    CourseCategory.generalElective => false,
   };
 }
 
@@ -46,6 +50,7 @@ CourseCategory _courseCategoryFromJson(
     'majorRequired' => CourseCategory.majorRequired,
     'majorElective' => CourseCategory.majorElective,
     'coreLiberalArts' => CourseCategory.coreLiberalArts,
+    'balancedLiberalArts' => CourseCategory.balancedLiberalArts,
     'generalElective' => CourseCategory.generalElective,
     _ =>
       isMajorRequired
@@ -156,6 +161,9 @@ class Course {
             .reduce((value, element) => value > element ? value : element);
 
   bool get isCoreLiberalArts => category == CourseCategory.coreLiberalArts;
+
+  bool get isBalancedLiberalArts =>
+      category == CourseCategory.balancedLiberalArts;
 
   bool occursOn(String day) => timeSlots.any((slot) => slot.day == day);
 

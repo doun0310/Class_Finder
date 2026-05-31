@@ -1,12 +1,13 @@
 import 'dart:math';
 
+import 'package:class_finder/models/course.dart';
 import 'package:class_finder/models/user_preference.dart';
 import 'package:class_finder/services/genetic_algorithm.dart';
 import 'package:class_finder/services/real_courses.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('includes only the selected grade major required courses', () {
+  test('uses only the selected grade major courses in recommendations', () {
     final secondGradePreference = const UserPreference(
       major: '컴퓨터공학부',
       grade: 2,
@@ -29,55 +30,93 @@ void main() {
     expect(fourthGradeResults, isNotEmpty);
 
     expect(
-      secondGradeResults.every((timetable) {
-        final courseCodes = timetable.courses
-            .map((course) => course.courseCode)
-            .toSet();
-        return courseCodes.contains('11024294') &&
-            !courseCodes.contains('11024295') &&
-            !courseCodes.contains('11024299');
-      }),
+      secondGradeResults.every(
+        (timetable) => timetable.courses
+            .where((course) => course.category.isMajor)
+            .every((course) => course.grade == 0 || course.grade == 2),
+      ),
       isTrue,
     );
-
     expect(
-      fourthGradeResults.every((timetable) {
-        final courseCodes = timetable.courses
-            .map((course) => course.courseCode)
-            .toSet();
-        return courseCodes.contains('11024299') &&
-            !courseCodes.contains('11024295') &&
-            !courseCodes.contains('11024294');
-      }),
+      fourthGradeResults.every(
+        (timetable) => timetable.courses
+            .where((course) => course.category.isMajor)
+            .every((course) => course.grade == 0 || course.grade == 4),
+      ),
       isTrue,
     );
   });
 
-  test(
-    'keeps selected major and liberal arts sections fixed in the results',
-    () {
-      final preference = const UserPreference(
-        major: '컴퓨터공학부',
-        grade: 4,
-        maxCredits: 18,
-        selectedMajorCourseIds: ['11024724-003'],
-        selectedLiberalArtsCourseIds: ['CWRIPROBLEM-021'],
-      );
+  test('keeps selected same-grade major and liberal arts sections fixed', () {
+    final preference = const UserPreference(
+      major: '컴퓨터공학부',
+      grade: 4,
+      maxCredits: 18,
+      selectedMajorCourseIds: ['11024716-001'],
+      selectedLiberalArtsCourseIds: ['CWRIPROBLEM-021'],
+    );
 
-      final results = GeneticAlgorithmService(
-        random: Random(0),
-      ).run(realCourses, preference);
+    final results = GeneticAlgorithmService(
+      random: Random(0),
+    ).run(realCourses, preference);
 
-      expect(results, isNotEmpty);
-      expect(
-        results.every(
-          (timetable) => timetable.courses
-              .map((course) => course.id)
-              .toSet()
-              .containsAll(<String>{'11024724-003', 'CWRIPROBLEM-021'}),
-        ),
-        isTrue,
-      );
-    },
-  );
+    expect(results, isNotEmpty);
+    expect(
+      results.every(
+        (timetable) => timetable.courses
+            .map((course) => course.id)
+            .toSet()
+            .containsAll(<String>{'11024716-001', 'CWRIPROBLEM-021'}),
+      ),
+      isTrue,
+    );
+  });
+
+  test('first-year recommendations stay core-liberal-arts heavy', () {
+    final results = GeneticAlgorithmService(random: Random(1)).run(
+      realCourses,
+      const UserPreference(major: '컴퓨터공학부', grade: 1, maxCredits: 18),
+    );
+
+    expect(results, isNotEmpty);
+
+    final top = results.first.courses;
+    final coreCount = top
+        .where((course) => course.category == CourseCategory.coreLiberalArts)
+        .length;
+    final balancedCount = top
+        .where(
+          (course) => course.category == CourseCategory.balancedLiberalArts,
+        )
+        .length;
+
+    expect(coreCount, greaterThanOrEqualTo(1));
+    expect(coreCount, greaterThanOrEqualTo(balancedCount));
+  });
+
+  test('upper-grade recommendations keep liberal arts light', () {
+    final results = GeneticAlgorithmService(random: Random(2)).run(
+      realCourses,
+      const UserPreference(major: '컴퓨터공학부', grade: 4, maxCredits: 18),
+    );
+
+    expect(results, isNotEmpty);
+
+    final top = results.first.courses;
+    final liberalArtsCount = top
+        .where((course) => !course.category.isMajor)
+        .length;
+    final balancedCount = top
+        .where(
+          (course) => course.category == CourseCategory.balancedLiberalArts,
+        )
+        .length;
+    final coreCount = top
+        .where((course) => course.category == CourseCategory.coreLiberalArts)
+        .length;
+
+    expect(liberalArtsCount, lessThanOrEqualTo(2));
+    expect(balancedCount, lessThanOrEqualTo(2));
+    expect(coreCount, lessThanOrEqualTo(1));
+  });
 }

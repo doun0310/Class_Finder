@@ -5,8 +5,8 @@ void main() {
   test('Course.fromJson defaults rating source to official estimate', () {
     final course = Course.fromJson({
       'id': 'TEST-001',
-      'name': '테스트 과목',
-      'professor': '홍길동',
+      'name': 'Test course',
+      'professor': 'Professor',
       'credit': 3,
       'rating': 4.1,
       'difficulty': 2,
@@ -20,14 +20,14 @@ void main() {
     });
 
     expect(course.ratingSource, RatingSource.officialEstimate);
-    expect(course.ratingSourceLabel, '공식 추정');
+    expect(course.toJson()['ratingSource'], 'officialEstimate');
   });
 
   test('Course.toJson preserves explicit rating source', () {
     const course = Course(
       id: 'TEST-002',
-      name: '리뷰 반영 과목',
-      professor: '이몽룡',
+      name: 'Review backed course',
+      professor: 'Reviewer',
       credit: 2,
       rating: 4.5,
       ratingSource: RatingSource.reviewBacked,
@@ -40,5 +40,25 @@ void main() {
     );
 
     expect(course.toJson()['ratingSource'], 'reviewBacked');
+  });
+
+  test('Course.toJson preserves balanced liberal arts category', () {
+    const course = Course(
+      id: 'TEST-003',
+      name: 'Balanced course',
+      professor: 'Tester',
+      credit: 2,
+      rating: 4.0,
+      difficulty: 2,
+      hasTeamProject: false,
+      isMajorRequired: false,
+      category: CourseCategory.balancedLiberalArts,
+      grade: 0,
+      timeSlots: [],
+    );
+
+    expect(course.category, CourseCategory.balancedLiberalArts);
+    expect(course.categoryLabel, '균형교양');
+    expect(course.toJson()['category'], 'balancedLiberalArts');
   });
 }

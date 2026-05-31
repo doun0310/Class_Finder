@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/course.dart';
 import '../models/user_preference.dart';
 import '../services/app_state.dart';
+import '../services/auth_service.dart';
 import '../services/real_courses.dart';
 import '../theme/app_theme.dart';
 import '../widgets/matching_loading_overlay.dart';
@@ -17,6 +18,8 @@ class InputScreen extends StatefulWidget {
 }
 
 class _InputScreenState extends State<InputScreen> {
+  late final AuthService _authService;
+  String _major = '컴퓨터공학부';
   int _grade = 2;
   int _maxCredits = 18;
   bool _preferMorning = false;
@@ -31,7 +34,9 @@ class _InputScreenState extends State<InputScreen> {
   final Map<int, List<_CourseSelectionGroup>> _majorGroupsCache = {};
   late final List<_CourseSelectionGroup> _liberalArtsGroups = _groupCourses(
     realCourses.where(
-      (course) => course.category == CourseCategory.coreLiberalArts,
+      (course) =>
+          course.category == CourseCategory.coreLiberalArts ||
+          course.category == CourseCategory.balancedLiberalArts,
     ),
   );
 
@@ -78,7 +83,7 @@ class _InputScreenState extends State<InputScreen> {
           (course) =>
               course.category == CourseCategory.majorElective &&
               course.hasTimeSlots &&
-              (course.grade == 0 || course.grade <= grade),
+              (course.grade == 0 || course.grade == grade),
         ),
       );
       groups.sort((a, b) {
@@ -95,7 +100,15 @@ class _InputScreenState extends State<InputScreen> {
   @override
   void initState() {
     super.initState();
+    _authService = context.read<AuthService>();
+    _authService.addListener(_handleAuthChanged);
     _loadPrefs();
+  }
+
+  @override
+  void dispose() {
+    _authService.removeListener(_handleAuthChanged);
+    super.dispose();
   }
 
   Future<void> _loadPrefs() async {
@@ -126,6 +139,8 @@ class _InputScreenState extends State<InputScreen> {
         ..addAll(prefs.getStringList('freeDays') ?? const []);
       _dropInvalidSelections();
     });
+
+    _syncAuthenticatedProfile(persist: false);
   }
 
   Future<void> _savePrefs() async {
@@ -150,6 +165,47 @@ class _InputScreenState extends State<InputScreen> {
     );
     await prefs.setStringList('freeDays', _preferredFreeDays.toList()..sort());
     await prefs.remove('requiredIds');
+  }
+
+  void _handleAuthChanged() {
+    if (!mounted) {
+      return;
+    }
+    _syncAuthenticatedProfile();
+  }
+
+  void _syncAuthenticatedProfile({bool persist = true}) {
+    final user = _authService.user;
+    if (user == null) {
+      return;
+    }
+
+    final normalizedDepartment = user.department.trim().isEmpty
+        ? '컴퓨터공학부'
+        : user.department.trim();
+    final gradeChanged = _grade != user.grade;
+    final majorChanged = _major != normalizedDepartment;
+
+    if (!gradeChanged && !majorChanged) {
+      return;
+    }
+
+    setState(() {
+      _major = normalizedDepartment;
+      _grade = user.grade;
+      if (gradeChanged) {
+        _dropInvalidSelections();
+      }
+    });
+
+    if (persist) {
+      _savePrefs();
+    }
+
+    context.read<AppState>().syncAccountProfile(
+      major: normalizedDepartment,
+      grade: user.grade,
+    );
   }
 
   @override
@@ -337,8 +393,7 @@ class _InputScreenState extends State<InputScreen> {
                         const SizedBox(height: 14),
                         _SectionCard(
                           title: '자동 반영 전공필수',
-                          subtitle:
-                              '전공필수는 학년 기준으로 자동 포함되며, 추천 엔진이 충돌 없는 분반을 고릅니다.',
+                          subtitle: '전공필수는 학년 기준으로 자동 포함되며, 겹치지 않는 분반으로 정리됩니다.',
                           icon: Icons.auto_fix_high_rounded,
                           child: automaticRequiredGroups.isEmpty
                               ? _SelectionEmptyState(
@@ -386,7 +441,8 @@ class _InputScreenState extends State<InputScreen> {
                         const SizedBox(height: 14),
                         _SelectableCoursePanel(
                           title: '교양 선택',
-                          subtitle: '추가한 핵심교양 데이터에서 원하는 분반을 따로 선택할 수 있습니다.',
+                          subtitle:
+                              '추가한 핵심교양과 균형교양 데이터에서 원하는 분반을 따로 선택할 수 있습니다.',
                           icon: Icons.menu_book_rounded,
                           actionLabel: '교양 분반 선택',
                           accentColor: AppTheme.cyan,
@@ -394,7 +450,7 @@ class _InputScreenState extends State<InputScreen> {
                           emptyMessage: '선택한 교양 과목이 없습니다.',
                           onEdit: () => _openSelectionSheet(
                             title: '교양 선택',
-                            subtitle: '핵심교양 과목에서 원하는 분반을 고정으로 포함합니다.',
+                            subtitle: '핵심교양과 균형교양 과목에서 원하는 분반을 고정으로 포함합니다.',
                             groups: _liberalArtsGroups,
                             initialSelectedIds: _selectedLiberalArtsIds,
                             accentColor: AppTheme.cyan,
@@ -437,8 +493,8 @@ class _InputScreenState extends State<InputScreen> {
                       onPressed: state.isLoading
                           ? null
                           : () => _run(context, state),
-                      icon: const Icon(Icons.auto_awesome_rounded),
-                      label: const Text('추천 시간표 생성'),
+                      icon: const Icon(Icons.calendar_month_rounded),
+                      label: const Text('시간표 만들기'),
                     ),
                   ),
                 ),
@@ -576,7 +632,7 @@ class _InputScreenState extends State<InputScreen> {
 
     state.updatePref(
       UserPreference(
-        major: '컴퓨터공학부',
+        major: _major,
         grade: _grade,
         maxCredits: _maxCredits,
         preferMorning: _preferMorning,

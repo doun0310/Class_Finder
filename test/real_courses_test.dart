@@ -67,4 +67,19 @@ void main() {
       }),
     );
   });
+
+  test('includes official gajwa balanced liberal arts sections', () {
+    final balancedLiberalArts = realCourses
+        .where(
+          (course) => course.category == CourseCategory.balancedLiberalArts,
+        )
+        .toList();
+
+    expect(balancedLiberalArts.length, greaterThan(220));
+    expect(
+      balancedLiberalArts.map((course) => course.name).toSet(),
+      containsAll(<String>{'문학의이해', '생활법률', '실용수학', '운동과건강', '공학윤리'}),
+    );
+    expect(balancedLiberalArts.every((course) => course.rating >= 3.4), isTrue);
+  });
 }

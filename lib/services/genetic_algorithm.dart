@@ -313,11 +313,7 @@ class GeneticAlgorithmService {
 
   List<Timetable> run(List<Course> allCourses, UserPreference preference) {
     final eligible = allCourses
-        .where(
-          (course) =>
-              course.hasTimeSlots &&
-              (course.grade == 0 || course.grade <= preference.grade),
-        )
+        .where((course) => _isEligibleCourse(course, preference))
         .toList();
     final utilityById = _buildUtilityById(eligible, preference);
     final selectedCourses = _resolveSelectedCourses(
@@ -740,6 +736,10 @@ class GeneticAlgorithmService {
     double utilitySum = 0;
     int totalCredits = 0;
     int nonTeamCount = 0;
+    int coreLiberalCount = 0;
+    int balancedLiberalCount = 0;
+    int generalLiberalCount = 0;
+    int majorElectiveCount = 0;
     int boundsViolations = 0;
     int lunchDayMask = 0;
     int startHourSum = 0;
@@ -753,6 +753,22 @@ class GeneticAlgorithmService {
       utilitySum += stats.utility;
       if (!course.hasTeamProject) {
         nonTeamCount++;
+      }
+      switch (course.category) {
+        case CourseCategory.majorRequired:
+          break;
+        case CourseCategory.majorElective:
+          majorElectiveCount++;
+          break;
+        case CourseCategory.coreLiberalArts:
+          coreLiberalCount++;
+          break;
+        case CourseCategory.balancedLiberalArts:
+          balancedLiberalCount++;
+          break;
+        case CourseCategory.generalElective:
+          generalLiberalCount++;
+          break;
       }
       boundsViolations += stats.boundsViolations;
       lunchDayMask |= stats.lunchDayMask;
@@ -791,6 +807,13 @@ class GeneticAlgorithmService {
         ? 0.0
         : ((18 - (startHourSum / slotCount)) / 9).clamp(0.0, 1.0);
     final consecutiveMax = _consecutiveMaxFromMasks(dayMasks);
+    final courseMixScore = _courseMixScore(
+      coreLiberalCount: coreLiberalCount,
+      balancedLiberalCount: balancedLiberalCount,
+      generalLiberalCount: generalLiberalCount,
+      majorElectiveCount: majorElectiveCount,
+      preference: preference,
+    );
     final softScore = _softScore(
       courseCount: courses.length,
       totalRating: totalRating,
@@ -805,6 +828,7 @@ class GeneticAlgorithmService {
       lunchScore: lunchScore,
       morningScore: morningScore,
       consecutiveMax: consecutiveMax,
+      courseMixScore: courseMixScore,
     );
 
     final scoreBreakdown = <String, double>{
@@ -820,6 +844,7 @@ class GeneticAlgorithmService {
       'sectionFit': sectionFitScore,
       'lunch': lunchScore,
       'morning': morningScore,
+      'courseMix': courseMixScore,
     };
     final score = hardScore * softScore;
 
@@ -888,6 +913,7 @@ class GeneticAlgorithmService {
     required double lunchScore,
     required double morningScore,
     required int consecutiveMax,
+    required double courseMixScore,
   }) {
     final freeTimeScore = _freeTimeScore(
       freeDayCount,
@@ -916,10 +942,11 @@ class GeneticAlgorithmService {
               preferenceWeight;
 
     final scheduleQuality =
-        0.24 * compactnessScore +
-        0.18 * gapScore +
-        0.34 * creditFitScore +
-        0.24 * sectionFitScore;
+        0.19 * compactnessScore +
+        0.14 * gapScore +
+        0.24 * creditFitScore +
+        0.15 * sectionFitScore +
+        0.28 * courseMixScore;
     final consecutivePenalty = _consecutivePenalty(consecutiveMax);
     final lunchFactor = preference.requireLunchBreak
         ? lunchScore
@@ -929,7 +956,7 @@ class GeneticAlgorithmService {
         : 1.0;
 
     final combined =
-        (0.68 * preferenceScore + 0.32 * scheduleQuality) *
+        (0.64 * preferenceScore + 0.36 * scheduleQuality) *
         lunchFactor *
         morningFactor *
         consecutivePenalty;
@@ -1005,6 +1032,88 @@ class GeneticAlgorithmService {
     return (1 - overflow * 0.05).clamp(0.82, 1.0);
   }
 
+  double _courseMixScore({
+    required int coreLiberalCount,
+    required int balancedLiberalCount,
+    required int generalLiberalCount,
+    required int majorElectiveCount,
+    required UserPreference preference,
+  }) {
+    final liberalArtsCount =
+        coreLiberalCount + balancedLiberalCount + generalLiberalCount;
+
+    if (preference.grade <= 2) {
+      final minLiberalCount = preference.maxCredits >= 16 ? 2 : 1;
+      final maxLiberalCount = preference.maxCredits >= 18 ? 4 : 3;
+      final countScore = _rangeScore(
+        value: liberalArtsCount,
+        min: minLiberalCount,
+        max: maxLiberalCount,
+        belowPenalty: 0.32,
+        abovePenalty: 0.16,
+      );
+      final coreShare = liberalArtsCount == 0
+          ? 0.0
+          : coreLiberalCount / liberalArtsCount;
+      final coreFocusScore = liberalArtsCount == 0
+          ? 0.35
+          : (0.42 + 0.58 * coreShare).clamp(0.0, 1.0);
+      final balancedPenalty = balancedLiberalCount <= 1
+          ? 1.0
+          : (1 - (balancedLiberalCount - 1) * 0.12).clamp(0.55, 1.0);
+      final majorProgressScore = majorElectiveCount == 0 ? 0.88 : 1.0;
+
+      return (0.4 * countScore +
+              0.36 * coreFocusScore +
+              0.14 * balancedPenalty +
+              0.1 * majorProgressScore)
+          .clamp(0.0, 1.0);
+    }
+
+    final maxLiberalCount = preference.grade == 3 ? 2 : 1;
+    final countScore = _rangeScore(
+      value: liberalArtsCount,
+      min: 0,
+      max: maxLiberalCount,
+      belowPenalty: 0.0,
+      abovePenalty: 0.22,
+    );
+    final balancedFocusScore = switch (balancedLiberalCount) {
+      0 => 0.84,
+      1 => 1.0,
+      2 => 0.95,
+      _ => (1 - (balancedLiberalCount - 2) * 0.12).clamp(0.5, 1.0),
+    };
+    final corePenalty = coreLiberalCount == 0
+        ? 1.0
+        : (1 - coreLiberalCount * 0.18).clamp(0.45, 1.0);
+    final generalPenalty = generalLiberalCount == 0
+        ? 1.0
+        : (1 - generalLiberalCount * 0.14).clamp(0.55, 1.0);
+
+    return (0.42 * countScore +
+            0.24 * balancedFocusScore +
+            0.18 * corePenalty +
+            0.16 * generalPenalty)
+        .clamp(0.0, 1.0);
+  }
+
+  double _rangeScore({
+    required int value,
+    required int min,
+    required int max,
+    required double belowPenalty,
+    required double abovePenalty,
+  }) {
+    if (value < min) {
+      return (1 - (min - value) * belowPenalty).clamp(0.3, 1.0);
+    }
+    if (value > max) {
+      return (1 - (value - max) * abovePenalty).clamp(0.35, 1.0);
+    }
+    return 1.0;
+  }
+
   double _courseUtility(Course course, UserPreference preference) {
     return _context.utilityById[course.id] ??
         _calculateCourseUtility(course, preference);
@@ -1048,15 +1157,39 @@ class GeneticAlgorithmService {
         : 1.0;
     final preferredFreeDayPenalty =
         course.occursOnAny(preference.preferredFreeDays) ? 0.0 : 1.0;
+    final categoryPreference = _categoryPreferenceScore(course, preference);
 
-    return (0.24 * ratingScore +
-            0.16 * difficultyScore +
-            0.2 * inPreferredRangeScore +
-            0.12 * lunchCompatibility +
-            0.14 * morningBias +
-            0.08 * teamScore +
-            0.06 * preferredFreeDayPenalty)
+    return (0.22 * ratingScore +
+            0.15 * difficultyScore +
+            0.18 * inPreferredRangeScore +
+            0.1 * lunchCompatibility +
+            0.12 * morningBias +
+            0.07 * teamScore +
+            0.06 * preferredFreeDayPenalty +
+            0.1 * categoryPreference)
         .clamp(0.0, 1.0);
+  }
+
+  double _categoryPreferenceScore(Course course, UserPreference preference) {
+    return switch (course.category) {
+      CourseCategory.majorRequired => 1.0,
+      CourseCategory.majorElective => preference.grade <= 2 ? 0.88 : 1.0,
+      CourseCategory.coreLiberalArts =>
+        preference.grade <= 2 ? 1.0 : (preference.grade == 3 ? 0.58 : 0.42),
+      CourseCategory.balancedLiberalArts =>
+        preference.grade <= 2 ? 0.72 : (preference.grade == 3 ? 0.88 : 0.92),
+      CourseCategory.generalElective => preference.grade <= 2 ? 0.52 : 0.64,
+    };
+  }
+
+  bool _isEligibleCourse(Course course, UserPreference preference) {
+    if (!course.hasTimeSlots) {
+      return false;
+    }
+    if (course.category.isMajor) {
+      return course.grade == 0 || course.grade == preference.grade;
+    }
+    return true;
   }
 
   List<Course>? _resolveSelectedCourses(
@@ -1219,11 +1352,43 @@ class GeneticAlgorithmService {
     if (_hasSameCourse(courses, candidate)) {
       return false;
     }
+    if (_exceedsLiberalArtsStrategy(courses, candidate, preference)) {
+      return false;
+    }
     if ((currentCredits ?? _totalCredits(courses)) + candidate.credit >
         preference.maxCredits) {
       return false;
     }
     return !_conflictsWithAny(courses, candidate);
+  }
+
+  bool _exceedsLiberalArtsStrategy(
+    List<Course> courses,
+    Course candidate,
+    UserPreference preference,
+  ) {
+    if (candidate.category.isMajor || preference.grade <= 2) {
+      return false;
+    }
+
+    final liberalArtsCount = courses
+        .where((course) => !course.category.isMajor)
+        .length;
+    if (liberalArtsCount >= 2) {
+      return true;
+    }
+
+    if (candidate.category == CourseCategory.coreLiberalArts) {
+      final coreCount = courses
+          .where((course) => course.category == CourseCategory.coreLiberalArts)
+          .length;
+      final maxCoreCount = preference.grade == 3 ? 1 : 0;
+      if (coreCount >= maxCoreCount) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   List<Course> _candidateOrder(
