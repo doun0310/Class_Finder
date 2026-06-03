@@ -22,6 +22,7 @@ import { SignInDto } from './dto/sign-in.dto';
 import { SignUpDto } from './dto/sign-up.dto';
 import { SocialSignInDto } from './dto/social-sign-in.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { SocialTokenVerifier } from './social-token-verifier.service';
 
 const sessionLifetimeMs = 1000 * 60 * 60 * 24 * 30;
 const loginLockMs = 1000 * 30;
@@ -29,7 +30,10 @@ const maxFailedLoginCount = 5;
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly socialTokenVerifier: SocialTokenVerifier,
+  ) {}
 
   async signUp(input: SignUpDto) {
     const email = input.email.trim().toLowerCase();
@@ -120,27 +124,28 @@ export class AuthService {
   }
 
   async signInWithProvider(input: SocialSignInDto) {
-    const normalizedEmail = input.email?.trim().toLowerCase();
-    const providerUserId = input.providerUserId?.trim();
+    const identity = await this.socialTokenVerifier.verify(input);
+    const normalizedEmail = identity.email?.trim().toLowerCase();
+    const providerUserId = identity.providerUserId.trim();
     const seedEmail =
       normalizedEmail ??
-      `${input.provider}.${(providerUserId?.length ?? 0) > 0 ? providerUserId : 'user'}@classfinder.app`;
+      `${identity.provider}.${providerUserId}@classfinder.app`;
 
     let user = await this.prisma.user.findFirst({
       where: {
         OR: [
           { email: seedEmail },
           {
-            socialProvider: input.provider,
+            socialProvider: identity.provider,
             providerUserId,
           },
         ],
       },
     });
 
-    const nextDisplayName = this.hasText(input.displayName)
-      ? input.displayName!.trim()
-      : `${this.capitalize(input.provider)} User`;
+    const nextDisplayName = this.hasText(identity.displayName)
+      ? identity.displayName!.trim()
+      : `${this.capitalize(identity.provider)} User`;
 
     if (!user) {
       user = await this.prisma.user.create({
@@ -149,21 +154,21 @@ export class AuthService {
           email: seedEmail,
           name: nextDisplayName,
           studentId: '20240000',
-          department: 'Computer Science',
+          department: '컴퓨터공학부',
           grade: 2,
-          socialProvider: input.provider,
+          socialProvider: identity.provider,
           providerUserId,
         },
       });
     } else if (
-      user.socialProvider !== input.provider ||
+      user.socialProvider !== identity.provider ||
       user.providerUserId !== providerUserId ||
       user.name !== nextDisplayName
     ) {
       user = await this.prisma.user.update({
         where: { id: user.id },
         data: {
-          socialProvider: input.provider,
+          socialProvider: identity.provider,
           providerUserId,
           name: nextDisplayName,
         },

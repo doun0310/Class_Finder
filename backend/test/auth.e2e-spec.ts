@@ -1,9 +1,10 @@
-import { ValidationPipe } from '@nestjs/common';
+import { UnauthorizedException, ValidationPipe } from '@nestjs/common';
 import type { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import { SocialTokenVerifier } from '../src/auth/social-token-verifier.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { InMemoryPrismaService } from './support/in-memory-prisma';
 
@@ -19,6 +20,8 @@ describe('Auth and timetable API (e2e)', () => {
     })
       .overrideProvider(PrismaService)
       .useValue(prisma)
+      .overrideProvider(SocialTokenVerifier)
+      .useValue(new FakeSocialTokenVerifier())
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -136,6 +139,48 @@ describe('Auth and timetable API (e2e)', () => {
       .expect(429);
   });
 
+  it('uses only verified provider identity for social sign-in', async () => {
+    const first = await request(app.getHttpServer())
+      .post('/auth/social-signin')
+      .send({
+        provider: 'google',
+        idToken: 'verified-token',
+        email: 'spoofed@example.com',
+        displayName: 'Spoofed User',
+        providerUserId: 'spoofed-id',
+      })
+      .expect(200);
+
+    expect(first.body.user.email).toBe('verified.google@example.com');
+    expect(first.body.user.name).toBe('Verified google');
+    expect(first.body.user.department).toBe('컴퓨터공학부');
+    expect(first.body.user.id).toEqual(expect.any(String));
+
+    const second = await request(app.getHttpServer())
+      .post('/auth/social-signin')
+      .send({
+        provider: 'google',
+        idToken: 'verified-token',
+        email: 'different-spoof@example.com',
+        displayName: 'Another Spoof',
+        providerUserId: 'another-spoof-id',
+      })
+      .expect(200);
+
+    expect(second.body.user.id).toBe(first.body.user.id);
+    expect(second.body.user.email).toBe('verified.google@example.com');
+  });
+
+  it('rejects social sign-in when the provider token is missing', async () => {
+    await request(app.getHttpServer())
+      .post('/auth/social-signin')
+      .send({
+        provider: 'google',
+        email: 'spoofed@example.com',
+      })
+      .expect(401);
+  });
+
   it('blocks access to another user timetable collection', async () => {
     const owner = await request(app.getHttpServer()).post('/auth/signup').send({
       email: 'owner@example.com',
@@ -211,6 +256,20 @@ describe('Auth and timetable API (e2e)', () => {
               { day: 'Wed', startHour: 9, endHour: 11 },
             ],
           },
+          {
+            id: 'BAL101-001',
+            name: 'Balanced Liberal Arts',
+            professor: 'Prof. Park',
+            credit: 2,
+            rating: 3.8,
+            difficulty: 2,
+            hasTeamProject: false,
+            isMajorRequired: false,
+            category: 'balancedLiberalArts',
+            ratingSource: 'officialEstimate',
+            grade: 0,
+            timeSlots: [{ day: 'Fri', startHour: 14, endHour: 16 }],
+          },
         ],
       })
       .expect(201);
@@ -218,9 +277,12 @@ describe('Auth and timetable API (e2e)', () => {
     const timetableId = create.body.timetable.id as string;
     expect(create.body.timetable.name).toBe('Plan A');
     expect(create.body.timetable.score).toBe(84.5);
-    expect(create.body.timetable.courses).toHaveLength(1);
+    expect(create.body.timetable.courses).toHaveLength(2);
     expect(create.body.timetable.courses[0].timeSlots).toHaveLength(2);
     expect(create.body.timetable.courses[0].category).toBe('majorRequired');
+    expect(create.body.timetable.courses[1].category).toBe(
+      'balancedLiberalArts',
+    );
 
     await request(app.getHttpServer())
       .get(`/users/${userId}/timetables`)
@@ -254,3 +316,22 @@ describe('Auth and timetable API (e2e)', () => {
       .expect({ timetables: [] });
   });
 });
+
+class FakeSocialTokenVerifier {
+  async verify(input: {
+    provider: 'google' | 'kakao' | 'apple';
+    idToken?: string;
+    accessToken?: string;
+  }) {
+    if (!input.idToken && !input.accessToken) {
+      throw new UnauthorizedException('Provider token is required.');
+    }
+
+    return {
+      provider: input.provider,
+      providerUserId: `${input.provider}-verified-user`,
+      email: `verified.${input.provider}@example.com`,
+      displayName: `Verified ${input.provider}`,
+    };
+  }
+}

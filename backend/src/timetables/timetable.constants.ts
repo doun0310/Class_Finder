@@ -2,6 +2,7 @@ export const courseCategoryValues = [
   'majorRequired',
   'majorElective',
   'coreLiberalArts',
+  'balancedLiberalArts',
   'generalElective',
 ] as const;
 

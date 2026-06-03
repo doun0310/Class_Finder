@@ -10,6 +10,7 @@ enum CourseCategory {
   majorRequired
   majorElective
   coreLiberalArts
+  balancedLiberalArts
   generalElective
 }
 

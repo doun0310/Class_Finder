@@ -72,4 +72,16 @@ If `KAKAO_CUSTOM_SCHEME` is empty, it derives the Kakao callback scheme as `kaka
 - `accessToken`
 - `authorizationCode`
 
-The backend should verify the provider token and then issue the app's own session or JWT.
+The backend now verifies the provider token before issuing the app's own session.
+Client-provided `email`, `displayName`, and `providerUserId` are treated only as untrusted hints.
+
+## Backend Env
+
+Set these values on the NestJS server:
+
+```bash
+GOOGLE_CLIENT_IDS=YOUR_GOOGLE_SERVER_CLIENT_ID,YOUR_GOOGLE_IOS_CLIENT_ID
+APPLE_AUDIENCES=YOUR_APPLE_SERVICE_ID,com.maiyard.classFinder
+```
+
+Kakao verification uses the access token against Kakao's user API and does not require a server-side app key for the current flow.

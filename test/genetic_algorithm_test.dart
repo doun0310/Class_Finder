@@ -119,4 +119,25 @@ void main() {
     expect(balancedCount, lessThanOrEqualTo(2));
     expect(coreCount, lessThanOrEqualTo(1));
   });
+
+  test('keeps selected free days completely empty', () {
+    final results = GeneticAlgorithmService(random: Random(3)).run(
+      realCourses,
+      const UserPreference(
+        major: '컴퓨터공학부',
+        grade: 4,
+        maxCredits: 18,
+        preferredFreeDays: ['금'],
+      ),
+    );
+
+    expect(results, isNotEmpty);
+    expect(
+      results.every(
+        (timetable) =>
+            timetable.courses.every((course) => !course.occursOn('금')),
+      ),
+      isTrue,
+    );
+  });
 }

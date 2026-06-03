@@ -1,5 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import {
+  CourseCategory as PrismaCourseCategory,
+  Prisma,
+  RatingSource as PrismaRatingSource,
+} from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTimetableDto } from './dto/create-timetable.dto';
@@ -40,7 +44,7 @@ export class TimetablesService {
   async create(userId: string, input: CreateTimetableDto) {
     await this.ensureUser(userId);
 
-    const timetable = await this.prisma.savedTimetable.create({
+    const timetable = (await this.prisma.savedTimetable.create({
       data: {
         userId,
         name: this.normalizeName(input.name),
@@ -53,7 +57,7 @@ export class TimetablesService {
         },
       },
       include: timetableInclude,
-    });
+    })) as TimetableRecord;
 
     return this.toResponse(timetable);
   }
@@ -100,7 +104,10 @@ export class TimetablesService {
     });
   }
 
-  private toCourseCreateInput(course: TimetableCourseDto, position: number) {
+  private toCourseCreateInput(
+    course: TimetableCourseDto,
+    position: number,
+  ): Prisma.SavedTimetableCourseCreateWithoutTimetableInput {
     const [courseCode, section = '001'] = course.id.split('-');
 
     return {
@@ -114,8 +121,8 @@ export class TimetablesService {
       difficulty: course.difficulty,
       hasTeamProject: course.hasTeamProject,
       isMajorRequired: course.isMajorRequired,
-      category: course.category,
-      ratingSource: course.ratingSource,
+      category: course.category as PrismaCourseCategory,
+      ratingSource: course.ratingSource as PrismaRatingSource,
       grade: course.grade,
       position,
       timeSlots: {

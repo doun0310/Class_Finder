@@ -326,6 +326,7 @@ class GeneticAlgorithmService {
     }
 
     final automaticRequiredCourses = _resolveAutomaticRequiredCourses(
+      allCourses,
       eligible,
       selectedCourses,
       utilityById,
@@ -1186,11 +1187,18 @@ class GeneticAlgorithmService {
     if (!course.hasTimeSlots) {
       return false;
     }
+    if (_violatesPreferredFreeDay(course, preference)) {
+      return false;
+    }
     if (course.category.isMajor) {
       return course.grade == 0 || course.grade == preference.grade;
     }
     return true;
   }
+
+  bool _violatesPreferredFreeDay(Course course, UserPreference preference) =>
+      preference.preferredFreeDays.isNotEmpty &&
+      course.occursOnAny(preference.preferredFreeDays);
 
   List<Course>? _resolveSelectedCourses(
     List<Course> eligible,
@@ -1200,6 +1208,9 @@ class GeneticAlgorithmService {
     final selected = eligible
         .where((course) => selectedCourseIds.contains(course.id))
         .toList();
+    if (selected.length != selectedCourseIds.length) {
+      return null;
+    }
     final grouped = <String, List<Course>>{};
 
     for (final course in selected) {
@@ -1219,12 +1230,23 @@ class GeneticAlgorithmService {
   }
 
   List<Course>? _resolveAutomaticRequiredCourses(
+    List<Course> allCourses,
     List<Course> eligible,
     List<Course> lockedCourses,
     Map<String, double> utilityById,
     UserPreference preference,
   ) {
     final lockedCourseCodes = lockedCourses
+        .map((course) => course.courseCode)
+        .toSet();
+    final requiredCourseCodes = allCourses
+        .where(
+          (course) =>
+              course.hasTimeSlots &&
+              course.category == CourseCategory.majorRequired &&
+              course.grade == preference.grade &&
+              !lockedCourseCodes.contains(course.courseCode),
+        )
         .map((course) => course.courseCode)
         .toSet();
     final grouped = <String, List<Course>>{};
@@ -1239,7 +1261,10 @@ class GeneticAlgorithmService {
     }
 
     if (grouped.isEmpty) {
-      return [];
+      return requiredCourseCodes.isEmpty ? [] : null;
+    }
+    if (!grouped.keys.toSet().containsAll(requiredCourseCodes)) {
+      return null;
     }
 
     final groups = grouped.values.toList()
@@ -1346,6 +1371,9 @@ class GeneticAlgorithmService {
     UserPreference preference, {
     int? currentCredits,
   }) {
+    if (_violatesPreferredFreeDay(candidate, preference)) {
+      return false;
+    }
     if (courses.any((course) => course.id == candidate.id)) {
       return false;
     }
