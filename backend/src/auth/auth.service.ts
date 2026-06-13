@@ -153,9 +153,9 @@ export class AuthService {
           id: randomUUID(),
           email: seedEmail,
           name: nextDisplayName,
-          studentId: '20240000',
-          department: '컴퓨터공학부',
-          grade: 2,
+          studentId: null,
+          department: null,
+          grade: null,
           socialProvider: identity.provider,
           providerUserId,
         },
@@ -288,8 +288,20 @@ export class AuthService {
       studentId: user.studentId ?? '',
       department: user.department ?? '',
       grade: user.grade ?? 1,
+      profileComplete: this.isProfileComplete(user),
       createdAt: user.createdAt.toISOString(),
     };
+  }
+
+  private isProfileComplete(user: User) {
+    return (
+      this.hasText(user.name ?? undefined) &&
+      this.hasText(user.studentId ?? undefined) &&
+      this.hasText(user.department ?? undefined) &&
+      typeof user.grade === 'number' &&
+      user.grade >= 1 &&
+      user.grade <= 4
+    );
   }
 
   private extractBearerToken(authorization: string | undefined) {

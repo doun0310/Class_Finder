@@ -187,10 +187,7 @@ class LocalAuthRepository implements AuthRepository {
 
     final record = users[emailKey];
     if (record == null) {
-      throw const AuthException(
-        AuthErrorCode.userNotFound,
-        '가입되지 않은 이메일입니다.',
-      );
+      throw const AuthException(AuthErrorCode.userNotFound, '가입되지 않은 이메일입니다.');
     }
 
     final data = Map<String, dynamic>.from(record as Map);
@@ -201,9 +198,7 @@ class LocalAuthRepository implements AuthRepository {
       if (failureCount >= 5) {
         attempts[emailKey] = {
           'count': 0,
-          'lockedUntil': now
-              .add(const Duration(seconds: 30))
-              .toIso8601String(),
+          'lockedUntil': now.add(const Duration(seconds: 30)).toIso8601String(),
         };
         await _writeAttempts(attempts);
         throw const AuthException(
@@ -222,7 +217,9 @@ class LocalAuthRepository implements AuthRepository {
       );
     }
 
-    final user = User.fromJson(Map<String, dynamic>.from(data['profile'] as Map));
+    final user = User.fromJson(
+      Map<String, dynamic>.from(data['profile'] as Map),
+    );
     final token = _randomToken();
     attempts.remove(emailKey);
     await _writeAttempts(attempts);
@@ -240,10 +237,9 @@ class LocalAuthRepository implements AuthRepository {
 
     final users = await _readUsers();
     final token = _randomToken();
-    final emailKey =
-        (payload?.email?.trim().isNotEmpty ?? false)
-            ? payload!.email!.trim().toLowerCase()
-            : provider.seedEmail;
+    final emailKey = (payload?.email?.trim().isNotEmpty ?? false)
+        ? payload!.email!.trim().toLowerCase()
+        : provider.seedEmail;
     final existing = users[emailKey];
 
     if (existing != null) {
@@ -264,13 +260,13 @@ class LocalAuthRepository implements AuthRepository {
     final user = User(
       id: _randomToken(),
       email: emailKey,
-      name:
-          (payload?.displayName?.trim().isNotEmpty ?? false)
-              ? payload!.displayName!.trim()
-              : provider.seedName,
-      studentId: '20240000',
-      department: '컴퓨터공학부',
-      grade: 2,
+      name: (payload?.displayName?.trim().isNotEmpty ?? false)
+          ? payload!.displayName!.trim()
+          : provider.seedName,
+      studentId: '',
+      department: '',
+      grade: 1,
+      profileComplete: false,
       createdAt: DateTime.now(),
     );
     final salt = _randomToken();
@@ -384,10 +380,12 @@ class LocalAuthRepository implements AuthRepository {
     }
 
     final data = Map<String, dynamic>.from(users[emailKey] as Map);
-    data['profile'] = user.toJson();
+    data['profile'] = user
+        .copyWith(profileComplete: user.hasRequiredProfile)
+        .toJson();
     users[emailKey] = data;
     await _writeUsers(users);
-    return user;
+    return User.fromJson(Map<String, dynamic>.from(data['profile'] as Map));
   }
 }
 
@@ -490,9 +488,7 @@ class RemoteAuthRepository implements AuthRepository {
       }
 
       final response = await client.get('/auth/me');
-      return User.fromJson(
-        Map<String, dynamic>.from(response['user'] as Map),
-      );
+      return User.fromJson(Map<String, dynamic>.from(response['user'] as Map));
     } catch (_) {
       return null;
     }
@@ -508,9 +504,7 @@ class RemoteAuthRepository implements AuthRepository {
         'department': user.department,
         'grade': user.grade,
       });
-      return User.fromJson(
-        Map<String, dynamic>.from(response['user'] as Map),
-      );
+      return User.fromJson(Map<String, dynamic>.from(response['user'] as Map));
     } on ApiException catch (error) {
       throw _mapApiException(error);
     }
@@ -545,10 +539,7 @@ class RemoteAuthRepository implements AuthRepository {
     await prefs.remove(_tokenKey);
   }
 
-  AuthException _mapApiException(
-    ApiException error, {
-    AuthProvider? provider,
-  }) {
+  AuthException _mapApiException(ApiException error, {AuthProvider? provider}) {
     switch (error.statusCode) {
       case 0:
         return const AuthException(

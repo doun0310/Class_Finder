@@ -36,6 +36,7 @@ migrate_working_dir/
 backend/dist/
 backend/.env
 backend/.env.production
+social-login.env
 android/social-login.properties
 android/key.properties
 android/keystore/

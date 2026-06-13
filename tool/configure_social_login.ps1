@@ -39,6 +39,19 @@ function Get-KakaoScheme {
     return "classfinder-kakao-disabled"
 }
 
+function Set-Utf8NoBomContent {
+    param(
+        [string]$Path,
+        [string[]]$Value
+    )
+
+    [System.IO.File]::WriteAllLines(
+        $Path,
+        $Value,
+        [System.Text.UTF8Encoding]::new($false)
+    )
+}
+
 $workspace = Split-Path -Parent $PSScriptRoot
 $androidTarget = Join-Path $workspace $AndroidConfigPath
 $iosTarget = Join-Path $workspace $IosConfigPath
@@ -56,11 +69,11 @@ if (-not (Test-Path $iosDir)) {
     New-Item -ItemType Directory -Path $iosDir | Out-Null
 }
 
-Set-Content -Path $androidTarget -Encoding utf8 -Value @(
+Set-Utf8NoBomContent -Path $androidTarget -Value @(
     "kakaoScheme=$kakaoScheme"
 )
 
-Set-Content -Path $iosTarget -Encoding utf8 -Value @(
+Set-Utf8NoBomContent -Path $iosTarget -Value @(
     "GOOGLE_IOS_URL_SCHEME=$googleIosScheme"
     "KAKAO_IOS_URL_SCHEME=$kakaoScheme"
 )

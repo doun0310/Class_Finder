@@ -797,11 +797,11 @@ class _LogoBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 34,
-      height: 34,
+      width: 36,
+      height: 36,
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: border == null ? null : Border.fromBorderSide(border!),
       ),
       alignment: Alignment.center,
@@ -819,8 +819,8 @@ class _GoogleLogoBadge extends StatelessWidget {
       backgroundColor: Colors.white,
       border: BorderSide(color: Color(0xFFE5E7EB)),
       child: SizedBox(
-        width: 18,
-        height: 18,
+        width: 20,
+        height: 20,
         child: CustomPaint(painter: _GoogleLogoPainter()),
       ),
     );
@@ -835,29 +835,9 @@ class _KakaoLogoBadge extends StatelessWidget {
     return _LogoBadge(
       backgroundColor: const Color(0xFFFEE500),
       child: SizedBox(
-        width: 22,
-        height: 18,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            CustomPaint(
-              size: const Size(22, 18),
-              painter: const _KakaoBubblePainter(),
-            ),
-            Transform.translate(
-              offset: const Offset(0, -1),
-              child: Text(
-                'Talk',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: const Color(0xFFFEE500),
-                  fontSize: 6.8,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.35,
-                ),
-              ),
-            ),
-          ],
-        ),
+        width: 23,
+        height: 21,
+        child: CustomPaint(painter: const _KakaoBubblePainter()),
       ),
     );
   }
@@ -874,7 +854,7 @@ class _AppleLogoBadge extends StatelessWidget {
       backgroundColor: isDark ? Colors.white : const Color(0xFF111827),
       child: Icon(
         Icons.apple,
-        size: 18,
+        size: 21,
         color: isDark ? const Color(0xFF111827) : Colors.white,
       ),
     );
@@ -886,10 +866,10 @@ class _GoogleLogoPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final strokeWidth = size.width * 0.22;
+    final strokeWidth = size.width * 0.2;
     final rect = Rect.fromCircle(
       center: Offset(size.width / 2, size.height / 2),
-      radius: size.width * 0.36,
+      radius: size.width * 0.34,
     );
 
     void drawArc(Color color, double startDegrees, double sweepDegrees) {
@@ -907,21 +887,24 @@ class _GoogleLogoPainter extends CustomPainter {
       );
     }
 
-    drawArc(const Color(0xFFEA4335), -40, 86);
-    drawArc(const Color(0xFFFBBC05), 45, 92);
-    drawArc(const Color(0xFF34A853), 137, 98);
-    drawArc(const Color(0xFF4285F4), 232, 128);
+    drawArc(const Color(0xFFEA4335), -42, 88);
+    drawArc(const Color(0xFFFBBC05), 46, 92);
+    drawArc(const Color(0xFF34A853), 138, 96);
+    drawArc(const Color(0xFF4285F4), 232, 126);
 
     final barPaint = Paint()
       ..color = const Color(0xFF4285F4)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round;
-    canvas.drawLine(
-      Offset(size.width * 0.52, size.height * 0.5),
-      Offset(size.width * 0.84, size.height * 0.5),
-      barPaint,
+      ..style = PaintingStyle.fill;
+    final bar = RRect.fromRectAndRadius(
+      Rect.fromLTWH(
+        size.width * 0.52,
+        size.height * 0.43,
+        size.width * 0.33,
+        size.height * 0.14,
+      ),
+      Radius.circular(size.width * 0.08),
     );
+    canvas.drawRRect(bar, barPaint);
   }
 
   @override
@@ -935,17 +918,17 @@ class _KakaoBubblePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final bubbleRect = RRect.fromRectAndRadius(
       Rect.fromLTWH(
-        size.width * 0.08,
+        size.width * 0.04,
         size.height * 0.02,
-        size.width * 0.84,
-        size.height * 0.72,
+        size.width * 0.92,
+        size.height * 0.76,
       ),
-      Radius.circular(size.height * 0.3),
+      Radius.circular(size.height * 0.34),
     );
     final path = Path()..addRRect(bubbleRect);
-    path.moveTo(size.width * 0.42, size.height * 0.74);
-    path.lineTo(size.width * 0.5, size.height * 0.98);
-    path.lineTo(size.width * 0.56, size.height * 0.7);
+    path.moveTo(size.width * 0.42, size.height * 0.75);
+    path.lineTo(size.width * 0.31, size.height * 0.99);
+    path.lineTo(size.width * 0.58, size.height * 0.78);
     path.close();
     canvas.drawPath(path, Paint()..color = const Color(0xFF191919));
   }

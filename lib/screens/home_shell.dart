@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'course_search_screen.dart';
 import 'dashboard_screen.dart';
 import 'input_screen.dart';
 import 'profile_screen.dart';
+import '../services/auth_service.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -14,6 +16,21 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _currentIndex = 0;
+  bool _checkedProfileCompletion = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_checkedProfileCompletion) {
+      return;
+    }
+
+    final user = context.read<AuthService>().user;
+    if (user != null && !user.profileComplete) {
+      _currentIndex = 3;
+    }
+    _checkedProfileCompletion = true;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +38,7 @@ class _HomeShellState extends State<HomeShell> {
       DashboardScreen(
         onNavigate: (index) => setState(() => _currentIndex = index),
       ),
-      const InputScreen(),
+      InputScreen(onProfileRequired: () => setState(() => _currentIndex = 3)),
       const CourseSearchScreen(),
       const ProfileScreen(),
     ];
@@ -56,9 +73,9 @@ class _HomeShellState extends State<HomeShell> {
                   label: '홈',
                 ),
                 NavigationDestination(
-                  icon: Icon(Icons.auto_awesome_outlined),
-                  selectedIcon: Icon(Icons.auto_awesome),
-                  label: '추천',
+                  icon: Icon(Icons.calendar_month_outlined),
+                  selectedIcon: Icon(Icons.calendar_month_rounded),
+                  label: '시간표',
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.search_outlined),

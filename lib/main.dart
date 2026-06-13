@@ -35,7 +35,7 @@ void main() {
           update: (_, auth, state) {
             final appState = state ?? AppState();
             final user = auth.user;
-            if (user != null) {
+            if (user != null && user.profileComplete) {
               appState.syncAccountProfile(
                 major: user.department,
                 grade: user.grade,

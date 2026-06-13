@@ -3,9 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../services/auth_service.dart';
+import '../../services/department_options.dart';
 import '../../services/runtime_config.dart';
 import '../../widgets/app_text_field.dart';
 import '../../widgets/auth_shell.dart';
+import '../../widgets/department_picker_field.dart';
 import '../../widgets/runtime_mode_notice.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -23,18 +25,8 @@ class _SignupScreenState extends State<SignupScreen> {
   final _name = TextEditingController();
   final _studentId = TextEditingController();
 
-  String _department = '컴퓨터공학부';
+  String _department = defaultDepartment;
   int _grade = 1;
-
-  static const _departments = [
-    '컴퓨터공학부',
-    '소프트웨어공학과',
-    '전자공학과',
-    '기계공학과',
-    '경영학과',
-    '경제학과',
-    '기타',
-  ];
 
   void _clearAuthError() {
     final auth = context.read<AuthService>();
@@ -270,24 +262,11 @@ class _SignupScreenState extends State<SignupScreen> {
               },
             ),
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _department,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: '학과',
-                prefixIcon: Icon(Icons.school_outlined, size: 20),
-              ),
-              items: _departments
-                  .map(
-                    (department) => DropdownMenuItem(
-                      value: department,
-                      child: Text(department),
-                    ),
-                  )
-                  .toList(),
+            DepartmentPickerField(
+              value: _department,
               onChanged: (value) {
                 _clearAuthError();
-                setState(() => _department = value ?? '기타');
+                setState(() => _department = value);
               },
             ),
             const SizedBox(height: 16),

@@ -11,7 +11,9 @@ import '../theme/app_theme.dart';
 import '../widgets/matching_loading_overlay.dart';
 
 class InputScreen extends StatefulWidget {
-  const InputScreen({super.key});
+  final VoidCallback? onProfileRequired;
+
+  const InputScreen({super.key, this.onProfileRequired});
 
   @override
   State<InputScreen> createState() => _InputScreenState();
@@ -176,7 +178,7 @@ class _InputScreenState extends State<InputScreen> {
 
   void _syncAuthenticatedProfile({bool persist = true}) {
     final user = _authService.user;
-    if (user == null) {
+    if (user == null || !user.profileComplete) {
       return;
     }
 
@@ -211,9 +213,17 @@ class _InputScreenState extends State<InputScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final user = context.watch<AuthService>().user;
+    final needsProfileSetup = user != null && !user.profileComplete;
     final automaticRequiredGroups = _automaticRequiredGroups;
     final selectedMajorCourses = _selectedMajorCourses;
     final selectedLiberalArtsCourses = _selectedLiberalArtsCourses;
+    final fixedCourseCount =
+        automaticRequiredGroups.length +
+        selectedMajorCourses.length +
+        selectedLiberalArtsCourses.length;
+    final freeDaySummary = _freeDaySummary;
+    final timeWindowSummary = _timeWindowSummary;
 
     return Consumer<AppState>(
       builder: (context, state, _) {
@@ -226,21 +236,31 @@ class _InputScreenState extends State<InputScreen> {
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
                       child: _PreferenceHero(
+                        major: _major,
                         grade: _grade,
                         maxCredits: _maxCredits,
                         automaticRequiredCount: automaticRequiredGroups.length,
                         selectedMajorCount: selectedMajorCourses.length,
                         selectedLiberalCount: selectedLiberalArtsCourses.length,
+                        timeWindowLabel: timeWindowSummary,
+                        freeDayLabel: freeDaySummary,
+                        requireLunchBreak: _requireLunchBreak,
                       ),
                     ),
                   ),
                   SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(16, 18, 16, 120),
+                    padding: const EdgeInsets.fromLTRB(16, 18, 16, 170),
                     sliver: SliverList(
                       delegate: SliverChildListDelegate([
+                        if (needsProfileSetup) ...[
+                          _ProfileSetupNotice(
+                            onPressed: widget.onProfileRequired,
+                          ),
+                          const SizedBox(height: 14),
+                        ],
                         _SectionCard(
                           title: '기본 조건',
-                          subtitle: '학년과 최대 학점을 기준으로 먼저 추천 범위를 잡습니다.',
+                          subtitle: '학년과 최대 학점을 기준으로 과목 범위를 잡습니다.',
                           icon: Icons.tune_rounded,
                           child: Column(
                             children: [
@@ -354,11 +374,38 @@ class _InputScreenState extends State<InputScreen> {
                         ),
                         const SizedBox(height: 14),
                         _SectionCard(
-                          title: '추천 가중치',
+                          title: '평가 기준',
                           subtitle: '무엇을 더 중요하게 볼지 직접 조정할 수 있습니다.',
                           icon: Icons.equalizer_rounded,
                           child: Column(
                             children: [
+                              _WeightPresetBar(
+                                onBalanced: () => setState(() {
+                                  _freeTimeWeight = 0.4;
+                                  _ratingWeight = 0.3;
+                                  _difficultyWeight = 0.2;
+                                  _avoidTeamProject = false;
+                                }),
+                                onFreeDayFocus: () => setState(() {
+                                  _freeTimeWeight = 0.7;
+                                  _ratingWeight = 0.2;
+                                  _difficultyWeight = 0.1;
+                                  _avoidTeamProject = false;
+                                }),
+                                onRatingFocus: () => setState(() {
+                                  _freeTimeWeight = 0.25;
+                                  _ratingWeight = 0.65;
+                                  _difficultyWeight = 0.1;
+                                  _avoidTeamProject = false;
+                                }),
+                                onLowBurden: () => setState(() {
+                                  _freeTimeWeight = 0.35;
+                                  _ratingWeight = 0.2;
+                                  _difficultyWeight = 0.45;
+                                  _avoidTeamProject = true;
+                                }),
+                              ),
+                              const SizedBox(height: 16),
                               _WeightSlider(
                                 title: '공강과 여유 시간',
                                 value: _freeTimeWeight,
@@ -392,13 +439,13 @@ class _InputScreenState extends State<InputScreen> {
                         ),
                         const SizedBox(height: 14),
                         _SectionCard(
-                          title: '자동 반영 전공필수',
-                          subtitle: '전공필수는 학년 기준으로 자동 포함되며, 겹치지 않는 분반으로 정리됩니다.',
-                          icon: Icons.auto_fix_high_rounded,
+                          title: '학년별 전공필수',
+                          subtitle: '전공필수는 학년 기준으로 포함되며, 겹치지 않는 분반으로 정리됩니다.',
+                          icon: Icons.assignment_turned_in_rounded,
                           child: automaticRequiredGroups.isEmpty
                               ? _SelectionEmptyState(
                                   icon: Icons.school_outlined,
-                                  message: '현재 학년 기준으로 자동 반영할 전공필수가 없습니다.',
+                                  message: '현재 학년 기준으로 반영할 전공필수가 없습니다.',
                                 )
                               : Column(
                                   children: automaticRequiredGroups
@@ -489,12 +536,32 @@ class _InputScreenState extends State<InputScreen> {
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(14),
-                    child: FilledButton.icon(
-                      onPressed: state.isLoading
-                          ? null
-                          : () => _run(context, state),
-                      icon: const Icon(Icons.calendar_month_rounded),
-                      label: const Text('시간표 만들기'),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _BottomActionSummary(
+                          fixedCourseCount: fixedCourseCount,
+                          freeDayLabel: freeDaySummary,
+                          timeWindowLabel: timeWindowSummary,
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: state.isLoading || needsProfileSetup
+                                ? null
+                                : () => _run(context, state),
+                            icon: Icon(
+                              needsProfileSetup
+                                  ? Icons.lock_outline_rounded
+                                  : Icons.calendar_month_rounded,
+                            ),
+                            label: Text(
+                              needsProfileSetup ? '프로필 입력 후 생성' : '시간표 만들기',
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -509,6 +576,19 @@ class _InputScreenState extends State<InputScreen> {
         );
       },
     );
+  }
+
+  String get _timeWindowSummary => '$_minStartHour:00-$_maxEndHour:00';
+
+  String get _freeDaySummary {
+    if (_preferredFreeDays.isEmpty) {
+      return '공강 미선택';
+    }
+
+    return weekdays
+        .where(_preferredFreeDays.contains)
+        .map((day) => '$day요일')
+        .join('·');
   }
 
   List<_CourseSelectionGroup> _groupCourses(Iterable<Course> courses) {
@@ -682,19 +762,84 @@ class _CourseSelectionGroup {
   }
 }
 
+class _ProfileSetupNotice extends StatelessWidget {
+  final VoidCallback? onPressed;
+
+  const _ProfileSetupNotice({this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: scheme.errorContainer.withValues(alpha: 0.44),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: scheme.error.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: scheme.error.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(Icons.manage_accounts_rounded, color: scheme.error),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('프로필 정보를 먼저 입력해 주세요', style: theme.textTheme.titleMedium),
+                const SizedBox(height: 6),
+                Text(
+                  '학과와 학년이 확정되어야 전공필수와 과목 범위를 정확하게 적용할 수 있습니다.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                FilledButton.tonalIcon(
+                  onPressed: onPressed,
+                  icon: const Icon(Icons.person_outline_rounded, size: 18),
+                  label: const Text('프로필 입력하기'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _PreferenceHero extends StatelessWidget {
+  final String major;
   final int grade;
   final int maxCredits;
   final int automaticRequiredCount;
   final int selectedMajorCount;
   final int selectedLiberalCount;
+  final String timeWindowLabel;
+  final String freeDayLabel;
+  final bool requireLunchBreak;
 
   const _PreferenceHero({
+    required this.major,
     required this.grade,
     required this.maxCredits,
     required this.automaticRequiredCount,
     required this.selectedMajorCount,
     required this.selectedLiberalCount,
+    required this.timeWindowLabel,
+    required this.freeDayLabel,
+    required this.requireLunchBreak,
   });
 
   @override
@@ -717,7 +862,7 @@ class _PreferenceHero extends StatelessWidget {
               borderRadius: BorderRadius.circular(999),
             ),
             child: Text(
-              '맞춤 시간표 설정',
+              '시간표 조건 설정',
               style: theme.textTheme.labelLarge?.copyWith(
                 color: theme.colorScheme.onPrimaryContainer,
               ),
@@ -725,7 +870,7 @@ class _PreferenceHero extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            '전공과 교양을 분리해서 고르고, 전공필수는 자동으로 반영합니다.',
+            '전공과 교양을 분리해서 선택하고, 학년별 전공필수를 함께 반영합니다.',
             style: theme.textTheme.headlineSmall?.copyWith(letterSpacing: -0.6),
           ),
           const SizedBox(height: 10),
@@ -738,13 +883,14 @@ class _PreferenceHero extends StatelessWidget {
             spacing: 10,
             runSpacing: 10,
             children: [
+              _HeroPill(icon: Icons.apartment_rounded, label: major),
               _HeroPill(icon: Icons.school_rounded, label: '$grade학년 기준'),
               _HeroPill(
                 icon: Icons.credit_score_rounded,
                 label: '$maxCredits학점 상한',
               ),
               _HeroPill(
-                icon: Icons.auto_fix_high_rounded,
+                icon: Icons.assignment_turned_in_rounded,
                 label: '전공필수 $automaticRequiredCount과목',
               ),
               _HeroPill(
@@ -755,7 +901,44 @@ class _PreferenceHero extends StatelessWidget {
                 icon: Icons.menu_book_rounded,
                 label: '교양 선택 $selectedLiberalCount과목',
               ),
+              _HeroPill(icon: Icons.schedule_rounded, label: timeWindowLabel),
+              _HeroPill(
+                icon: Icons.event_available_rounded,
+                label: freeDayLabel,
+              ),
+              if (requireLunchBreak)
+                const _HeroPill(
+                  icon: Icons.lunch_dining_rounded,
+                  label: '점심 확보',
+                ),
             ],
+          ),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer.withValues(alpha: 0.36),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.touch_app_rounded,
+                  size: 20,
+                  color: theme.colorScheme.onPrimaryContainer,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '필요한 조건만 바꾼 뒤 하단의 시간표 만들기를 누르면 현재 요약이 그대로 반영됩니다.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onPrimaryContainer,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -784,6 +967,69 @@ class _HeroPill extends StatelessWidget {
           Icon(icon, size: 16, color: theme.colorScheme.primary),
           const SizedBox(width: 6),
           Text(label, style: theme.textTheme.labelLarge),
+        ],
+      ),
+    );
+  }
+}
+
+class _BottomActionSummary extends StatelessWidget {
+  final int fixedCourseCount;
+  final String freeDayLabel;
+  final String timeWindowLabel;
+
+  const _BottomActionSummary({
+    required this.fixedCourseCount,
+    required this.freeDayLabel,
+    required this.timeWindowLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        _ActionSummaryPill(
+          icon: Icons.push_pin_rounded,
+          label: '반영 $fixedCourseCount과목',
+        ),
+        _ActionSummaryPill(
+          icon: Icons.event_available_rounded,
+          label: freeDayLabel,
+        ),
+        _ActionSummaryPill(
+          icon: Icons.schedule_rounded,
+          label: timeWindowLabel,
+        ),
+      ],
+    );
+  }
+}
+
+class _ActionSummaryPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _ActionSummaryPill({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: theme.colorScheme.primary),
+          const SizedBox(width: 5),
+          Text(label, style: theme.textTheme.labelMedium),
         ],
       ),
     );
@@ -992,6 +1238,81 @@ class _WeightSlider extends StatelessWidget {
   }
 }
 
+class _WeightPresetBar extends StatelessWidget {
+  final VoidCallback onBalanced;
+  final VoidCallback onFreeDayFocus;
+  final VoidCallback onRatingFocus;
+  final VoidCallback onLowBurden;
+
+  const _WeightPresetBar({
+    required this.onBalanced,
+    required this.onFreeDayFocus,
+    required this.onRatingFocus,
+    required this.onLowBurden,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.tune_rounded,
+                size: 18,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 8),
+              Text('평가 기준 프리셋', style: theme.textTheme.titleSmall),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '원하는 기준을 먼저 선택한 뒤 세부 값만 조정하세요.',
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _PresetActionChip(label: '균형', onPressed: onBalanced),
+              _PresetActionChip(label: '공강 우선', onPressed: onFreeDayFocus),
+              _PresetActionChip(label: '평점 우선', onPressed: onRatingFocus),
+              _PresetActionChip(label: '부담 낮춤', onPressed: onLowBurden),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PresetActionChip extends StatelessWidget {
+  final String label;
+  final VoidCallback onPressed;
+
+  const _PresetActionChip({required this.label, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return ActionChip(
+      label: Text(label),
+      avatar: const Icon(Icons.check_rounded, size: 16),
+      onPressed: onPressed,
+    );
+  }
+}
+
 class _WeightSummary extends StatelessWidget {
   final double freeTimeWeight;
   final double ratingWeight;
@@ -1065,7 +1386,7 @@ class _AutomaticRequiredTile extends StatelessWidget {
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
-                    '자동 반영',
+                    '기본 반영',
                     style: theme.textTheme.labelMedium?.copyWith(
                       color: theme.colorScheme.onPrimaryContainer,
                       fontWeight: FontWeight.w700,

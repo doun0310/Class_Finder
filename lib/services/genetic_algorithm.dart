@@ -1472,13 +1472,16 @@ class GeneticAlgorithmService {
   List<Timetable> _pickTopUnique(List<Timetable> population) {
     final unique = <Timetable>[];
     final seen = <String>{};
+    final deferred = <Timetable>[];
 
     for (final timetable in population) {
-      final key =
-          (timetable.courses.map((course) => course.id).toList()..sort()).join(
-            ',',
-          );
+      final key = _evaluationKey(timetable.courses);
       if (!seen.add(key)) {
+        continue;
+      }
+
+      if (!_isDistinctAlternative(timetable, unique)) {
+        deferred.add(timetable);
         continue;
       }
 
@@ -1488,7 +1491,61 @@ class GeneticAlgorithmService {
       }
     }
 
+    for (final timetable in deferred) {
+      if (unique.length == 5) {
+        break;
+      }
+      unique.add(timetable);
+    }
+
     return unique;
+  }
+
+  bool _isDistinctAlternative(Timetable candidate, List<Timetable> selected) {
+    if (selected.isEmpty) {
+      return true;
+    }
+
+    final candidateCodes = _courseCodeSet(candidate);
+    final candidateDayPattern = _dayPattern(candidate);
+
+    for (final existing in selected) {
+      final existingCodes = _courseCodeSet(existing);
+      final codeSimilarity = _jaccardSimilarity(candidateCodes, existingCodes);
+      final sameDayPattern = candidateDayPattern == _dayPattern(existing);
+
+      if (sameDayPattern && codeSimilarity >= 0.82) {
+        return false;
+      }
+      if (codeSimilarity >= 0.92) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  Set<String> _courseCodeSet(Timetable timetable) =>
+      timetable.courses.map((course) => course.courseCode).toSet();
+
+  String _dayPattern(Timetable timetable) {
+    final activeDays = <String>[];
+    for (final day in weekdays) {
+      if (timetable.courses.any((course) => course.occursOn(day))) {
+        activeDays.add(day);
+      }
+    }
+    return activeDays.join(',');
+  }
+
+  double _jaccardSimilarity(Set<String> left, Set<String> right) {
+    if (left.isEmpty && right.isEmpty) {
+      return 1.0;
+    }
+
+    final intersection = left.intersection(right).length;
+    final union = left.union(right).length;
+    return union == 0 ? 0.0 : intersection / union;
   }
 
   int _creditFloor(int maxCredits) =>

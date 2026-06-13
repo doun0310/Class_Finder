@@ -121,6 +121,13 @@ if ($CheckBackendEnv) {
         if ($backendMap.ContainsKey('CORS_ORIGIN') -and $backendMap['CORS_ORIGIN'] -match 'localhost|127\.0\.0\.1') {
             $warnings += "CORS_ORIGIN still contains a local host address."
         }
+        if ($RequireGoogle) {
+            Add-IfBlank -Value $backendMap['GOOGLE_CLIENT_IDS'] -Message "Google login is required but GOOGLE_CLIENT_IDS is empty in the backend environment file." -Errors ([ref]$errors)
+        }
+        if ($RequireApple) {
+            Add-IfBlank -Value $backendMap['APPLE_AUDIENCES'] -Message "Apple login is required but APPLE_AUDIENCES is empty in the backend environment file." -Errors ([ref]$errors)
+            Add-IfBlank -Value $backendMap['APPLE_ANDROID_PACKAGE_ID'] -Message "Apple login is required but APPLE_ANDROID_PACKAGE_ID is empty in the backend environment file." -Errors ([ref]$errors)
+        }
     }
 }
 

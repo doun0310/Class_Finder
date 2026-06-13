@@ -178,9 +178,11 @@ class DeviceSocialAuthService implements SocialAuthGateway {
   }
 
   bool _looksConfiguredForGoogle() {
-    if (_googleServerClientId.isNotEmpty) {
-      return true;
+    if (defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.macOS) {
+      return _googleIosClientId.isNotEmpty || _googleServerClientId.isNotEmpty;
     }
-    return defaultTargetPlatform == TargetPlatform.android;
+
+    return _googleServerClientId.isNotEmpty;
   }
 }

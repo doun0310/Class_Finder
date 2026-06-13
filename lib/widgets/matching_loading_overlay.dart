@@ -15,17 +15,15 @@ class MatchingLoadingOverlay extends StatefulWidget {
   State<MatchingLoadingOverlay> createState() => _MatchingLoadingOverlayState();
 }
 
-class _MatchingLoadingOverlayState extends State<MatchingLoadingOverlay>
-    with SingleTickerProviderStateMixin {
+class _MatchingLoadingOverlayState extends State<MatchingLoadingOverlay> {
   static const _steps = [
-    '선택한 강의를 확인하고 있어요.',
-    '시간이 겹치지 않는 분반을 정리하고 있어요.',
-    '조건에 맞는 시간표를 고르고 있어요.',
-    '공강과 이동 흐름을 살펴보고 있어요.',
-    '결과를 화면에 맞게 정리하고 있어요.',
+    '강의 목록 확인',
+    '분반 시간표 대조',
+    '공강 조건 적용',
+    '학점 범위 검토',
+    '후보 결과 정렬',
   ];
 
-  late final AnimationController _controller;
   late final Stopwatch _stopwatch;
   late final Duration _normalizedExpectedDuration;
   Timer? _ticker;
@@ -36,10 +34,6 @@ class _MatchingLoadingOverlayState extends State<MatchingLoadingOverlay>
   void initState() {
     super.initState();
     _normalizedExpectedDuration = _normalizeDuration(widget.expectedDuration);
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1600),
-    )..repeat();
     _stopwatch = Stopwatch()..start();
     _ticker = Timer.periodic(
       const Duration(milliseconds: 80),
@@ -75,7 +69,6 @@ class _MatchingLoadingOverlayState extends State<MatchingLoadingOverlay>
   void dispose() {
     _ticker?.cancel();
     _stopwatch.stop();
-    _controller.dispose();
     super.dispose();
   }
 
@@ -97,12 +90,12 @@ class _MatchingLoadingOverlayState extends State<MatchingLoadingOverlay>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _AnimatedStatusGlyph(controller: _controller),
-              const SizedBox(height: 22),
-              Text('시간표를 준비하고 있습니다.', style: theme.textTheme.titleLarge),
+              _LoadingHeader(progress: _progress),
+              const SizedBox(height: 20),
+              Text('시간표 생성 중', style: theme.textTheme.titleLarge),
               const SizedBox(height: 8),
               Text(
-                '예상 약 ${_formatDuration(widget.expectedDuration ?? _normalizedExpectedDuration)}',
+                '예상 소요 ${_formatDuration(widget.expectedDuration ?? _normalizedExpectedDuration)}',
                 style: theme.textTheme.labelLarge?.copyWith(
                   color: theme.colorScheme.primary,
                   fontWeight: FontWeight.w800,
@@ -121,7 +114,9 @@ class _MatchingLoadingOverlayState extends State<MatchingLoadingOverlay>
                 child: Text(
                   _steps[_step],
                   key: ValueKey(_step),
-                  style: theme.textTheme.bodyMedium,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -138,58 +133,61 @@ class _MatchingLoadingOverlayState extends State<MatchingLoadingOverlay>
   }
 }
 
-class _AnimatedStatusGlyph extends StatelessWidget {
-  final AnimationController controller;
+class _LoadingHeader extends StatelessWidget {
+  final double progress;
 
-  const _AnimatedStatusGlyph({required this.controller});
+  const _LoadingHeader({required this.progress});
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final percent = (progress * 100).clamp(0, 100).round();
 
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (context, child) {
-        final pulse = 0.92 + (controller.value * 0.12);
-        final opacity = 0.18 + (controller.value * 0.12);
-
-        return SizedBox(
-          width: 88,
-          height: 88,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Transform.scale(
-                scale: pulse,
-                child: Container(
-                  width: 88,
-                  height: 88,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: scheme.primary.withValues(alpha: opacity),
-                  ),
-                ),
-              ),
-              Container(
-                width: 68,
-                height: 68,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: scheme.primaryContainer,
-                  border: Border.all(
-                    color: scheme.primary.withValues(alpha: 0.22),
-                  ),
-                ),
-                child: Icon(
-                  Icons.calendar_month_rounded,
-                  size: 34,
-                  color: scheme.onPrimaryContainer,
-                ),
-              ),
-            ],
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: scheme.primaryContainer,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Icon(
+              Icons.calendar_view_week_rounded,
+              size: 28,
+              color: scheme.onPrimaryContainer,
+            ),
           ),
-        );
-      },
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '조건 검토 진행률',
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$percent%',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: scheme.primary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

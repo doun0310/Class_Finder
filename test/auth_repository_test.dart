@@ -94,8 +94,13 @@ void main() {
       final second = await repository.signInWithProvider(AuthProvider.google);
 
       expect(first.user.email, AuthProvider.google.seedEmail);
+      expect(first.user.studentId, isEmpty);
+      expect(first.user.department, isEmpty);
+      expect(first.user.grade, 1);
+      expect(first.user.profileComplete, isFalse);
       expect(second.user.id, first.user.id);
       expect(second.user.email, first.user.email);
+      expect(second.user.profileComplete, isFalse);
     });
   });
 }

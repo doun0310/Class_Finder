@@ -43,6 +43,15 @@ If you need to generate native social-login callback settings without building y
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tool\configure_social_login.ps1
 ```
 
+For local social-login testing, create `social-login.env` from the example and run the backend launcher:
+
+```bash
+copy social-login.env.example social-login.env
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tool\run_with_backend.ps1
+```
+
+`run_with_backend.ps1` reads `social-login.env`, passes the social login values to Flutter as `--dart-define`, and generates native callback settings for Google iOS and Kakao.
+
 ## Storage Modes
 
 - `flutter run`

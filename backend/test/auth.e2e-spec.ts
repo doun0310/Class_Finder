@@ -153,7 +153,9 @@ describe('Auth and timetable API (e2e)', () => {
 
     expect(first.body.user.email).toBe('verified.google@example.com');
     expect(first.body.user.name).toBe('Verified google');
-    expect(first.body.user.department).toBe('컴퓨터공학부');
+    expect(first.body.user.department).toBe('');
+    expect(first.body.user.grade).toBe(1);
+    expect(first.body.user.profileComplete).toBe(false);
     expect(first.body.user.id).toEqual(expect.any(String));
 
     const second = await request(app.getHttpServer())
@@ -179,6 +181,26 @@ describe('Auth and timetable API (e2e)', () => {
         email: 'spoofed@example.com',
       })
       .expect(401);
+  });
+
+  it('redirects Apple web callback back to the Android app', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/auth/apple/callback')
+      .type('form')
+      .send({
+        code: 'apple-code',
+        id_token: 'apple-id-token',
+        state: 'apple-state',
+      })
+      .expect(302);
+
+    expect(response.headers.location).toContain('intent://callback?');
+    expect(response.headers.location).toContain('code=apple-code');
+    expect(response.headers.location).toContain('id_token=apple-id-token');
+    expect(response.headers.location).toContain(
+      'package=com.maiyard.class_finder',
+    );
+    expect(response.headers.location).toContain('scheme=signinwithapple');
   });
 
   it('blocks access to another user timetable collection', async () => {

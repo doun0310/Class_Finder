@@ -33,6 +33,7 @@ void main() {
     expect(find.byKey(const ValueKey('social-logo-google')), findsOneWidget);
     expect(find.byKey(const ValueKey('social-logo-kakao')), findsOneWidget);
     expect(find.byKey(const ValueKey('social-logo-apple')), findsOneWidget);
+    expect(find.text('Talk'), findsNothing);
   });
 
   testWidgets('login screen shows local storage mode notice', (tester) async {
@@ -45,14 +46,10 @@ void main() {
     expect(find.textContaining('기기 내부 저장소'), findsOneWidget);
   });
 
-  testWidgets('login screen shows backend storage mode notice', (
-    tester,
-  ) async {
+  testWidgets('login screen shows backend storage mode notice', (tester) async {
     await tester.pumpWidget(
       buildHarness(
-        runtimeConfig: const RuntimeConfig(
-          apiBaseUrl: 'http://localhost:3001',
-        ),
+        runtimeConfig: const RuntimeConfig(apiBaseUrl: 'http://localhost:3001'),
       ),
     );
     await tester.pumpAndSettle();

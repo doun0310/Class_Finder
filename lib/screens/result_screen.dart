@@ -10,10 +10,21 @@ import '../theme/app_theme.dart';
 import '../widgets/rating_source_badge.dart';
 import '../widgets/timetable_grid.dart';
 
-class ResultScreen extends StatelessWidget {
+class ResultScreen extends StatefulWidget {
   const ResultScreen({super.key});
 
+  @override
+  State<ResultScreen> createState() => _ResultScreenState();
+}
+
+class _ResultScreenState extends State<ResultScreen> {
+  bool _saving = false;
+
   Future<void> _saveCurrent(BuildContext context, Timetable timetable) async {
+    if (_saving) {
+      return;
+    }
+
     final user = context.read<AuthService>().user;
     if (user == null) {
       ScaffoldMessenger.of(
@@ -23,41 +34,43 @@ class ResultScreen extends StatelessWidget {
     }
 
     final controller = TextEditingController(
-      text: '추천 시간표 ${DateTime.now().month}/${DateTime.now().day}',
+      text: '시간표 ${DateTime.now().month}/${DateTime.now().day}',
     );
     final repository = context.read<TimetableRepository>();
-    final name = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('시간표 저장'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration: const InputDecoration(
-              labelText: '이름',
-              hintText: '예: 2학기 기본안',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('취소'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, controller.text),
-              child: const Text('저장'),
-            ),
-          ],
-        );
-      },
-    );
 
-    if (name == null) {
-      return;
-    }
-
+    setState(() => _saving = true);
     try {
+      final name = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: const Text('시간표 저장'),
+            content: TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: '이름',
+                hintText: '예: 2학기 기본안',
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('취소'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, controller.text),
+                child: const Text('저장'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (!context.mounted || name == null) {
+        return;
+      }
+
       await repository.save(user: user, name: name, timetable: timetable);
     } on TimetableRepositoryException catch (error) {
       if (context.mounted) {
@@ -66,6 +79,11 @@ class ResultScreen extends StatelessWidget {
         ).showSnackBar(SnackBar(content: Text(error.message)));
       }
       return;
+    } finally {
+      controller.dispose();
+      if (mounted) {
+        setState(() => _saving = false);
+      }
     }
 
     if (context.mounted) {
@@ -87,7 +105,7 @@ class ResultScreen extends StatelessWidget {
       builder: (context, state, _) {
         if (state.results.isEmpty) {
           return Scaffold(
-            appBar: AppBar(title: const Text('추천 결과')),
+            appBar: AppBar(title: const Text('시간표 결과')),
             body: Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
@@ -142,13 +160,24 @@ class ResultScreen extends StatelessWidget {
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
-                          '추천 결과',
+                          '시간표 결과',
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                       ),
                       IconButton.filledTonal(
-                        onPressed: () => _saveCurrent(context, selected),
-                        icon: const Icon(Icons.bookmark_add_outlined),
+                        key: const ValueKey('save-timetable-button'),
+                        tooltip: _saving ? '저장 중' : '시간표 저장',
+                        onPressed: _saving
+                            ? null
+                            : () => _saveCurrent(context, selected),
+                        icon: _saving
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.bookmark_add_outlined),
                       ),
                       const SizedBox(width: 8),
                       TextButton.icon(
@@ -218,12 +247,12 @@ class _ResultHero extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '가장 잘 맞는 시간표를 골랐습니다.',
+            '조건을 반영한 시간표입니다.',
             style: theme.textTheme.titleLarge?.copyWith(color: Colors.white),
           ),
           const SizedBox(height: 10),
           Text(
-            '하드 제약 충족도와 선호 점수를 함께 반영한 결과입니다.',
+            '시간 충돌, 학점, 공강 조건을 기준으로 정렬한 결과입니다.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: Colors.white.withValues(alpha: 0.82),
             ),
@@ -399,7 +428,7 @@ class _RankBar extends StatelessWidget {
                     Row(
                       children: [
                         Text(
-                          '${index + 1}위 추천',
+                          '${index + 1}안',
                           style: theme.textTheme.titleSmall,
                         ),
                         const Spacer(),
@@ -464,10 +493,10 @@ class _ConstraintPanel extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('추천 근거', style: theme.textTheme.titleMedium),
+            Text('검토 기준', style: theme.textTheme.titleMedium),
             const SizedBox(height: 6),
             Text(
-              '하드 제약을 먼저 만족시키고, 이후 공강 밀도와 평점 가중치를 반영해 점수를 매겼습니다.',
+              '시간 충돌과 학점 제한을 먼저 확인하고, 공강 밀도와 평점 가중치를 함께 반영했습니다.',
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: 16),
@@ -613,7 +642,7 @@ class _TimetableSection extends StatelessWidget {
             Text('주간 시간표', style: theme.textTheme.titleMedium),
             const SizedBox(height: 6),
             Text(
-              '추천 시간표가 실제 주간 배치에서 어떻게 보이는지 바로 확인할 수 있습니다.',
+              '선택한 시간표가 주간 배치에서 어떻게 보이는지 확인할 수 있습니다.',
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: 18),
@@ -646,7 +675,7 @@ class _CourseList extends StatelessWidget {
             Text('과목 구성', style: theme.textTheme.titleMedium),
             const SizedBox(height: 6),
             Text(
-              '추천 시간표를 구성하는 과목과 분반, 평점, 난이도를 한 번에 볼 수 있습니다.',
+              '시간표를 구성하는 과목과 분반, 평점, 난이도를 한 번에 볼 수 있습니다.',
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: 18),

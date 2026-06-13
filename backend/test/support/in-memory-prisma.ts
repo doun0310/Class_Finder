@@ -2,11 +2,11 @@ import { randomUUID } from 'node:crypto';
 
 type StoredUser = {
   id: string;
-  email: string;
-  name: string;
-  studentId: string;
-  department: string;
-  grade: number;
+  email: string | null;
+  name: string | null;
+  studentId: string | null;
+  department: string | null;
+  grade: number | null;
   createdAt: Date;
   passwordHash: string | null;
   passwordSalt: string | null;
@@ -367,9 +367,9 @@ export class InMemoryPrismaService {
       id: data.id ?? randomUUID(),
       email: data.email ?? '',
       name: data.name ?? '',
-      studentId: data.studentId ?? '',
-      department: data.department ?? '',
-      grade: data.grade ?? 1,
+      studentId: data.studentId === undefined ? '' : data.studentId,
+      department: data.department === undefined ? '' : data.department,
+      grade: data.grade === undefined ? 1 : data.grade,
       createdAt: data.createdAt ?? new Date(),
       passwordHash: data.passwordHash ?? null,
       passwordSalt: data.passwordSalt ?? null,

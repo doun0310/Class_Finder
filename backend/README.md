@@ -7,6 +7,7 @@ NestJS + Prisma + PostgreSQL backend for timetable persistence.
 - `POST /auth/signup`
 - `POST /auth/signin`
 - `POST /auth/social-signin`
+- `POST /auth/apple/callback`
 - `POST /auth/password-reset`
 - `POST /auth/signout`
 - `GET /auth/me`
@@ -25,6 +26,7 @@ The server no longer trusts `email`, `displayName`, or `providerUserId` sent by 
 - Google: requires `idToken`; verifies it with Google's token info endpoint. Set `GOOGLE_CLIENT_IDS` to the accepted OAuth client IDs.
 - Kakao: requires `accessToken`; verifies it with Kakao's user API.
 - Apple: requires `idToken`; verifies the JWT signature against Apple's public keys. Set `APPLE_AUDIENCES` to the accepted Service ID or bundle ID values.
+- Apple Android web flow: `POST /auth/apple/callback` redirects Apple's callback body back to the Android app through `signinwithapple://callback`. Set `APPLE_ANDROID_PACKAGE_ID` if the Android package id changes.
 
 `GOOGLE_SERVER_CLIENT_ID`, `GOOGLE_IOS_CLIENT_ID`, `APPLE_SERVICE_ID`, and `APPLE_BUNDLE_ID` are also accepted as compatibility aliases.
 When `NODE_ENV=production`, Google and Apple sign-in are rejected if the accepted audience values are not configured.

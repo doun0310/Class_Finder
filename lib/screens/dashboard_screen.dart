@@ -89,7 +89,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       child: _ActionCard(
                         color: AppTheme.blue,
                         icon: Icons.calendar_month_rounded,
-                        title: '시간표 추천',
+                        title: '시간표 만들기',
                         subtitle: '선택한 조건에 맞는 시간표 조합을 빠르게 확인합니다.',
                         onTap: () => widget.onNavigate?.call(1),
                       ),
@@ -105,6 +105,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ),
                   ],
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                child: _FlowGuideCard(
+                  onStart: () => widget.onNavigate?.call(1),
+                  onExplore: () => widget.onNavigate?.call(2),
                 ),
               ),
             ),
@@ -373,6 +382,145 @@ class _ActionCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _FlowGuideCard extends StatelessWidget {
+  final VoidCallback onStart;
+  final VoidCallback onExplore;
+
+  const _FlowGuideCard({required this.onStart, required this.onExplore});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  Icons.route_rounded,
+                  color: theme.colorScheme.onPrimaryContainer,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('처음이라면 이렇게 시작하세요', style: theme.textTheme.titleMedium),
+                    const SizedBox(height: 4),
+                    Text(
+                      '조건을 정하고, 결과를 비교한 뒤 마음에 드는 시간표를 저장하면 됩니다.',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const _GuideStep(
+            number: '1',
+            title: '학년과 공강 조건 선택',
+            body: '전공필수는 기본 반영되고, 전공·교양은 필요할 때만 고정합니다.',
+          ),
+          const SizedBox(height: 10),
+          const _GuideStep(
+            number: '2',
+            title: '결과 비교',
+            body: '점수, 공강, 평점, 시간표 배치를 한 화면에서 확인합니다.',
+          ),
+          const SizedBox(height: 10),
+          const _GuideStep(
+            number: '3',
+            title: '저장 후 다시 확인',
+            body: '저장한 시간표는 홈과 저장 목록에서 계속 볼 수 있습니다.',
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              FilledButton.icon(
+                onPressed: onStart,
+                icon: const Icon(Icons.calendar_month_rounded),
+                label: const Text('시간표 만들기'),
+              ),
+              OutlinedButton.icon(
+                onPressed: onExplore,
+                icon: const Icon(Icons.search_rounded),
+                label: const Text('강의 먼저 보기'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GuideStep extends StatelessWidget {
+  final String number;
+  final String title;
+  final String body;
+
+  const _GuideStep({
+    required this.number,
+    required this.title,
+    required this.body,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 28,
+          height: 28,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            number,
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: theme.colorScheme.primary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: theme.textTheme.titleSmall),
+              const SizedBox(height: 3),
+              Text(body, style: theme.textTheme.bodySmall),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

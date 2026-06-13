@@ -4,8 +4,10 @@ import 'package:provider/provider.dart';
 
 import '../models/user.dart';
 import '../services/auth_service.dart';
+import '../services/department_options.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_text_field.dart';
+import '../widgets/department_picker_field.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -44,6 +46,12 @@ class ProfileScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
               child: Column(
                 children: [
+                  if (!user.profileComplete) ...[
+                    _ProfileCompletionCard(
+                      onEdit: () => _showEditSheet(context, user),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   _ProfileHeroCard(
                     user: user,
                     onEdit: () => _showEditSheet(context, user),
@@ -52,7 +60,7 @@ class ProfileScreen extends StatelessWidget {
                   const SizedBox(height: 16),
                   _SectionCard(
                     title: '계정 정보',
-                    subtitle: '추천과 저장 흐름에 연결되는 기본 프로필입니다.',
+                    subtitle: '시간표 생성과 저장에 연결되는 기본 프로필입니다.',
                     child: Column(
                       children: [
                         _DetailTile(
@@ -88,7 +96,7 @@ class ProfileScreen extends StatelessWidget {
                         _ActionTile(
                           icon: Icons.bookmark_added_outlined,
                           title: '저장한 시간표',
-                          subtitle: '보관 중인 추천 결과와 비교용 시간표를 확인합니다.',
+                          subtitle: '보관 중인 시간표와 비교용 시간표를 확인합니다.',
                           onTap: () => Navigator.pushNamed(context, '/saved'),
                         ),
                         _ActionTile(
@@ -189,7 +197,7 @@ class ProfileScreen extends StatelessWidget {
               ),
               _SignOutInfoRow(
                 icon: Icons.bookmark_outline_rounded,
-                text: '저장한 시간표와 추천 기록은 유지됩니다.',
+                text: '저장한 시간표 기록은 유지됩니다.',
               ),
               _SignOutInfoRow(
                 icon: Icons.login_rounded,
@@ -236,6 +244,66 @@ class ProfileScreen extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _ProfileCompletionCard extends StatelessWidget {
+  final VoidCallback onEdit;
+
+  const _ProfileCompletionCard({required this.onEdit});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: scheme.primaryContainer.withValues(alpha: 0.62),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: scheme.primary.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: scheme.primary.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Icon(Icons.verified_user_outlined, color: scheme.primary),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '프로필을 완성해야 시간표를 만들 수 있습니다',
+                  style: theme.textTheme.titleMedium,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '소셜 로그인 계정은 학번, 학과, 학년을 별도로 확인해야 합니다. 이 정보가 있어야 전공필수와 학년별 전공선택을 정확히 반영합니다.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                FilledButton.icon(
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  label: const Text('프로필 입력하기'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -306,7 +374,7 @@ class _ProfileHeroCard extends StatelessWidget {
           ),
           const SizedBox(height: 22),
           Text(
-            '추천과 저장 흐름이 계정에 연결되어 있습니다.',
+            '시간표 생성과 저장 흐름이 계정에 연결되어 있습니다.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: scheme.onSurfaceVariant,
             ),
@@ -763,7 +831,7 @@ class _DangerZone extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           Text(
-            '로그아웃하면 이 기기에서만 세션이 종료됩니다. 저장한 시간표와 추천 결과는 유지되며 다시 로그인해 이어서 사용할 수 있습니다.',
+            '로그아웃하면 이 기기에서만 세션이 종료됩니다. 저장한 시간표는 유지되며 다시 로그인해 이어서 사용할 수 있습니다.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: scheme.onErrorContainer.withValues(alpha: 0.86),
             ),
@@ -869,23 +937,13 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
   late String _department;
   late int _grade;
 
-  static const _departments = [
-    '컴퓨터공학과',
-    '소프트웨어학과',
-    '전자공학과',
-    '기계공학과',
-    '경영학과',
-    '경제학과',
-    '기타',
-  ];
-
   @override
   void initState() {
     super.initState();
     _name = TextEditingController(text: widget.user.name);
     _studentId = TextEditingController(text: widget.user.studentId);
-    _department = widget.user.department;
-    _grade = widget.user.grade;
+    _department = normalizeDepartment(widget.user.department);
+    _grade = widget.user.grade.clamp(1, 4).toInt();
   }
 
   @override
@@ -942,7 +1000,7 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
             Text('프로필 수정', style: theme.textTheme.headlineSmall),
             const SizedBox(height: 8),
             Text(
-              '추천과 저장 흐름에 연결되는 기본 정보를 업데이트합니다.',
+              '시간표 생성과 저장에 연결되는 기본 정보를 업데이트합니다.',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -963,21 +1021,9 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             ),
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _department,
-              decoration: const InputDecoration(
-                labelText: '학과',
-                prefixIcon: Icon(Icons.school_outlined, size: 20),
-              ),
-              items: _departments
-                  .map(
-                    (department) => DropdownMenuItem(
-                      value: department,
-                      child: Text(department),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (value) => setState(() => _department = value ?? '기타'),
+            DepartmentPickerField(
+              value: _department,
+              onChanged: (value) => setState(() => _department = value),
             ),
             const SizedBox(height: 16),
             Text('학년', style: theme.textTheme.bodyMedium),

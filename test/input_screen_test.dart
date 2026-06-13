@@ -63,13 +63,26 @@ void main() {
 
     await pumpInputScreen(tester, authService: authService);
 
+    expect(find.text('시간표 조건 설정'), findsOneWidget);
+    expect(find.text('시간표 만들기'), findsOneWidget);
+    expect(find.textContaining('반영'), findsWidgets);
+
     await tester.scrollUntilVisible(
-      find.text('자동 반영 전공필수'),
+      find.text('평가 기준 프리셋'),
       300,
       scrollable: find.byType(Scrollable).first,
     );
     await tester.pump(const Duration(milliseconds: 200));
-    expect(find.text('자동 반영 전공필수'), findsOneWidget);
+    expect(find.text('평가 기준 프리셋'), findsOneWidget);
+    expect(find.text('공강 우선'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.text('학년별 전공필수'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.text('학년별 전공필수'), findsOneWidget);
     expect(find.text('전공 선택'), findsOneWidget);
 
     await tester.scrollUntilVisible(
@@ -111,6 +124,48 @@ void main() {
 
     expect(find.text('4학년 기준'), findsOneWidget);
     expect(find.text('2학년 기준'), findsNothing);
+  });
+
+  testWidgets('input screen ignores incomplete account profile grade', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({'grade': 2, 'auth.token': 'token'});
+
+    final authService = AuthService(
+      _SeededAuthRepository(
+        user: User(
+          id: 'social-user',
+          email: 'social@example.com',
+          name: 'Social User',
+          studentId: '',
+          department: '',
+          grade: 4,
+          profileComplete: false,
+          createdAt: DateTime(2026, 1, 1),
+        ),
+      ),
+      socialAuth: _FakeSocialAuthService(),
+    );
+    await authService.loadSession();
+
+    tester.view.physicalSize = const Size(360, 760);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await pumpInputScreen(tester, authService: authService);
+
+    expect(find.text('2학년 기준'), findsOneWidget);
+    expect(find.text('4학년 기준'), findsNothing);
+
+    await tester.scrollUntilVisible(
+      find.text('프로필 정보를 먼저 입력해 주세요'),
+      220,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.text('프로필 정보를 먼저 입력해 주세요'), findsOneWidget);
+    expect(find.text('프로필 입력 후 생성'), findsOneWidget);
   });
 }
 

@@ -140,4 +140,30 @@ void main() {
       isTrue,
     );
   });
+
+  test('top alternatives keep comparison diversity', () {
+    final results = GeneticAlgorithmService(random: Random(4)).run(
+      realCourses,
+      const UserPreference(
+        major: '컴퓨터공학부',
+        grade: 3,
+        maxCredits: 18,
+        preferredFreeDays: ['금'],
+      ),
+    );
+
+    expect(results.length, greaterThanOrEqualTo(3));
+
+    final signatures = results.map(_alternativeSignature).toSet();
+    expect(signatures.length, greaterThanOrEqualTo(min(3, results.length)));
+  });
+}
+
+String _alternativeSignature(Timetable timetable) {
+  final activeDays = weekdays
+      .where((day) => timetable.courses.any((course) => course.occursOn(day)))
+      .join(',');
+  final courseCodes =
+      timetable.courses.map((course) => course.courseCode).toList()..sort();
+  return '$activeDays|${courseCodes.join(',')}';
 }
