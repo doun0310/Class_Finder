@@ -19,6 +19,7 @@ class ResultScreen extends StatefulWidget {
 
 class _ResultScreenState extends State<ResultScreen> {
   bool _saving = false;
+  final Set<String> _savedTimetableKeys = {};
 
   Future<void> _saveCurrent(BuildContext context, Timetable timetable) async {
     if (_saving) {
@@ -33,45 +34,29 @@ class _ResultScreenState extends State<ResultScreen> {
       return;
     }
 
-    final controller = TextEditingController(
-      text: '시간표 ${DateTime.now().month}/${DateTime.now().day}',
-    );
     final repository = context.read<TimetableRepository>();
+    final name = _defaultTimetableName(timetable);
 
     setState(() => _saving = true);
     try {
-      final name = await showDialog<String>(
-        context: context,
-        builder: (dialogContext) {
-          return AlertDialog(
-            title: const Text('시간표 저장'),
-            content: TextField(
-              controller: controller,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: '이름',
-                hintText: '예: 2학기 기본안',
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('취소'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(dialogContext, controller.text),
-                child: const Text('저장'),
-              ),
-            ],
-          );
-        },
+      final saved = await repository.save(
+        user: user,
+        name: name,
+        timetable: timetable,
       );
-
-      if (!context.mounted || name == null) {
+      _savedTimetableKeys.add(_timetableKey(timetable));
+      if (!context.mounted) {
         return;
       }
-
-      await repository.save(user: user, name: name, timetable: timetable);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('"${saved.name}" 저장 완료'),
+          action: SnackBarAction(
+            label: '목록',
+            onPressed: () => Navigator.pushNamed(context, '/saved'),
+          ),
+        ),
+      );
     } on TimetableRepositoryException catch (error) {
       if (context.mounted) {
         ScaffoldMessenger.of(
@@ -80,24 +65,20 @@ class _ResultScreenState extends State<ResultScreen> {
       }
       return;
     } finally {
-      controller.dispose();
       if (mounted) {
         setState(() => _saving = false);
       }
     }
-
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('시간표를 저장했습니다.'),
-          action: SnackBarAction(
-            label: '보기',
-            onPressed: () => Navigator.pushNamed(context, '/saved'),
-          ),
-        ),
-      );
-    }
   }
+
+  String _defaultTimetableName(Timetable timetable) {
+    final now = DateTime.now();
+    final score = (timetable.score * 100).toStringAsFixed(0);
+    return '시간표 ${now.month}/${now.day} · ${timetable.totalCredits}학점 · $score점';
+  }
+
+  String _timetableKey(Timetable timetable) =>
+      (timetable.courses.map((course) => course.id).toList()..sort()).join(',');
 
   @override
   Widget build(BuildContext context) {
@@ -144,6 +125,9 @@ class _ResultScreenState extends State<ResultScreen> {
         }
 
         final selected = state.selectedTimetable!;
+        final selectedSaved = _savedTimetableKeys.contains(
+          _timetableKey(selected),
+        );
 
         return Scaffold(
           body: SafeArea(
@@ -151,44 +135,13 @@ class _ResultScreenState extends State<ResultScreen> {
               children: [
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.arrow_back_rounded),
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          '시간표 결과',
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                      ),
-                      IconButton.filledTonal(
-                        key: const ValueKey('save-timetable-button'),
-                        tooltip: _saving ? '저장 중' : '시간표 저장',
-                        onPressed: _saving
-                            ? null
-                            : () => _saveCurrent(context, selected),
-                        icon: _saving
-                            ? const SizedBox.square(
-                                dimension: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.bookmark_add_outlined),
-                      ),
-                      const SizedBox(width: 8),
-                      TextButton.icon(
-                        onPressed: () => Navigator.popUntil(
-                          context,
-                          (route) => route.isFirst,
-                        ),
-                        icon: const Icon(Icons.tune_rounded),
-                        label: const Text('조건 수정'),
-                      ),
-                    ],
+                  child: _ResultHeader(
+                    saving: _saving,
+                    saved: selectedSaved,
+                    onBack: () => Navigator.pop(context),
+                    onSave: () => _saveCurrent(context, selected),
+                    onEditConditions: () =>
+                        Navigator.popUntil(context, (route) => route.isFirst),
                   ),
                 ),
                 Expanded(
@@ -218,6 +171,76 @@ class _ResultScreenState extends State<ResultScreen> {
               ],
             ),
           ),
+        );
+      },
+    );
+  }
+}
+
+class _ResultHeader extends StatelessWidget {
+  final bool saving;
+  final bool saved;
+  final VoidCallback onBack;
+  final VoidCallback onSave;
+  final VoidCallback onEditConditions;
+
+  const _ResultHeader({
+    required this.saving,
+    required this.saved,
+    required this.onBack,
+    required this.onSave,
+    required this.onEditConditions,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 390;
+        final saveButton = IconButton.filledTonal(
+          key: const ValueKey('save-timetable-button'),
+          tooltip: saved ? '저장됨' : (saving ? '저장 중' : '바로 저장'),
+          onPressed: saving || saved ? null : onSave,
+          icon: saving
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Icon(saved ? Icons.check_rounded : Icons.bookmark_add_rounded),
+        );
+        final editButton = TextButton.icon(
+          onPressed: onEditConditions,
+          icon: const Icon(Icons.tune_outlined),
+          label: const Text('조건 수정'),
+        );
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                IconButton(
+                  onPressed: onBack,
+                  icon: const Icon(Icons.arrow_back_rounded),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    '시간표 결과',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleLarge,
+                  ),
+                ),
+                saveButton,
+                if (!compact) ...[const SizedBox(width: 8), editButton],
+              ],
+            ),
+            if (compact)
+              Align(alignment: Alignment.centerRight, child: editButton),
+          ],
         );
       },
     );
@@ -258,29 +281,41 @@ class _ResultHero extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 22),
-          Row(
-            children: [
-              Expanded(
-                child: _HeroStat(
-                  label: '적합도',
-                  value: '${(timetable.score * 100).toStringAsFixed(1)}점',
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _HeroStat(
-                  label: '총 학점',
-                  value: '${timetable.totalCredits}학점',
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _HeroStat(
-                  label: '평균 평점',
-                  value: timetable.averageRating.toStringAsFixed(1),
-                ),
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 360;
+              final itemWidth = compact
+                  ? constraints.maxWidth
+                  : (constraints.maxWidth - 20) / 3;
+
+              return Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  SizedBox(
+                    width: itemWidth,
+                    child: _HeroStat(
+                      label: '적합도',
+                      value: '${(timetable.score * 100).toStringAsFixed(1)}점',
+                    ),
+                  ),
+                  SizedBox(
+                    width: itemWidth,
+                    child: _HeroStat(
+                      label: '총 학점',
+                      value: '${timetable.totalCredits}학점',
+                    ),
+                  ),
+                  SizedBox(
+                    width: itemWidth,
+                    child: _HeroStat(
+                      label: '평균 평점',
+                      value: timetable.averageRating.toStringAsFixed(1),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 18),
           Wrap(
@@ -332,6 +367,8 @@ class _HeroStat extends StatelessWidget {
         children: [
           Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: theme.textTheme.labelMedium?.copyWith(
               color: Colors.white.withValues(alpha: 0.72),
             ),
@@ -339,6 +376,8 @@ class _HeroStat extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: theme.textTheme.titleMedium?.copyWith(color: Colors.white),
           ),
         ],
@@ -641,10 +680,7 @@ class _TimetableSection extends StatelessWidget {
           children: [
             Text('주간 시간표', style: theme.textTheme.titleMedium),
             const SizedBox(height: 6),
-            Text(
-              '선택한 시간표가 주간 배치에서 어떻게 보이는지 확인할 수 있습니다.',
-              style: theme.textTheme.bodySmall,
-            ),
+            Text('요일별 배치를 확인합니다.', style: theme.textTheme.bodySmall),
             const SizedBox(height: 18),
             TimetableGrid(
               timetable: timetable,
@@ -674,10 +710,7 @@ class _CourseList extends StatelessWidget {
           children: [
             Text('과목 구성', style: theme.textTheme.titleMedium),
             const SizedBox(height: 6),
-            Text(
-              '시간표를 구성하는 과목과 분반, 평점, 난이도를 한 번에 볼 수 있습니다.',
-              style: theme.textTheme.bodySmall,
-            ),
+            Text('과목, 분반, 평점, 난이도를 확인합니다.', style: theme.textTheme.bodySmall),
             const SizedBox(height: 18),
             ...courses.asMap().entries.map((entry) {
               final course = entry.value;
@@ -714,14 +747,17 @@ class _CourseList extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
+                            Text(
+                              course.name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleSmall,
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
                               children: [
-                                Expanded(
-                                  child: Text(
-                                    course.name,
-                                    style: theme.textTheme.titleSmall,
-                                  ),
-                                ),
                                 _Badge(
                                   text: course.categoryLabel,
                                   color: switch (course.category) {
@@ -737,15 +773,15 @@ class _CourseList extends StatelessWidget {
                                       AppTheme.slate,
                                   },
                                 ),
-                                if (course.hasTeamProject) ...[
-                                  const SizedBox(width: 6),
+                                if (course.hasTeamProject)
                                   _Badge(text: '팀프로젝트', color: AppTheme.cyan),
-                                ],
                               ],
                             ),
                             const SizedBox(height: 6),
                             Text(
                               '${course.professor} · ${course.section}분반 · ${course.timeSummary}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.bodySmall,
                             ),
                             const SizedBox(height: 10),
@@ -826,6 +862,8 @@ class _Badge extends StatelessWidget {
       ),
       child: Text(
         text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: Theme.of(context).textTheme.labelMedium?.copyWith(color: color),
       ),
     );

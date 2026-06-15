@@ -1,10 +1,11 @@
-import { UnauthorizedException, ValidationPipe } from '@nestjs/common';
+import { UnauthorizedException } from '@nestjs/common';
 import type { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as request from 'supertest';
 
 import { AppModule } from '../src/app.module';
 import { SocialTokenVerifier } from '../src/auth/social-token-verifier.service';
+import { configureApp } from '../src/configure-app';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { InMemoryPrismaService } from './support/in-memory-prisma';
 
@@ -25,18 +26,20 @@ describe('Auth and timetable API (e2e)', () => {
       .compile();
 
     app = moduleRef.createNestApplication();
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        transform: true,
-        forbidNonWhitelisted: true,
-      }),
-    );
+    configureApp(app);
     await app.init();
   });
 
   afterEach(async () => {
     await app.close();
+  });
+
+  it('sets baseline security headers', async () => {
+    await request(app.getHttpServer())
+      .get('/health')
+      .expect(200)
+      .expect('x-content-type-options', 'nosniff')
+      .expect('x-frame-options', 'SAMEORIGIN');
   });
 
   it('signs up, restores the session, updates the profile, and revokes the token on signout', async () => {
@@ -232,6 +235,47 @@ describe('Auth and timetable API (e2e)', () => {
       });
   });
 
+  it('requires ownership for user sync', async () => {
+    const owner = await request(app.getHttpServer()).post('/auth/signup').send({
+      email: 'sync-owner@example.com',
+      password: 'password123',
+      name: 'Owner',
+      studentId: '20230006',
+      department: 'Computer Science',
+      grade: 2,
+    });
+    const viewer = await request(app.getHttpServer())
+      .post('/auth/signup')
+      .send({
+        email: 'sync-viewer@example.com',
+        password: 'password123',
+        name: 'Viewer',
+        studentId: '20230007',
+        department: 'Computer Science',
+        grade: 3,
+      });
+
+    await request(app.getHttpServer())
+      .post('/users/sync')
+      .send({
+        id: owner.body.user.id,
+        email: 'owner@example.com',
+      })
+      .expect(401);
+
+    await request(app.getHttpServer())
+      .post('/users/sync')
+      .set('Authorization', `Bearer ${viewer.body.token}`)
+      .send({
+        id: owner.body.user.id,
+        email: 'owner@example.com',
+      })
+      .expect(401)
+      .expect(({ body }) => {
+        expect(body.message).toBe('You can only sync your own profile.');
+      });
+  });
+
   it('creates, lists, renames, and deletes a timetable for the signed-in user', async () => {
     const signUp = await request(app.getHttpServer()).post('/auth/signup').send({
       email: 'planner@example.com',
@@ -336,6 +380,50 @@ describe('Auth and timetable API (e2e)', () => {
       .set('Authorization', `Bearer ${token}`)
       .expect(200)
       .expect({ timetables: [] });
+  });
+
+  it('rejects invalid timetable payloads before persistence', async () => {
+    const signUp = await request(app.getHttpServer()).post('/auth/signup').send({
+      email: 'invalid-plan@example.com',
+      password: 'password123',
+      name: 'Planner',
+      studentId: '20230005',
+      department: 'Computer Science',
+      grade: 2,
+    });
+    const userId = signUp.body.user.id as string;
+    const token = signUp.body.token as string;
+
+    await request(app.getHttpServer())
+      .post(`/users/${userId}/timetables`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        name: 'Invalid Plan',
+        score: 75,
+        scoreBreakdown: { spacing: 0.8 },
+        courses: [
+          {
+            id: 'CSE201-001',
+            name: 'Data Structures',
+            professor: 'Prof. Lee',
+            credit: 3,
+            rating: 4.2,
+            difficulty: 3,
+            hasTeamProject: false,
+            isMajorRequired: true,
+            category: 'majorRequired',
+            ratingSource: 'officialEstimate',
+            grade: 2,
+            timeSlots: [{ day: 'Mon', startHour: 11, endHour: 9 }],
+          },
+        ],
+      })
+      .expect(400)
+      .expect(({ body }) => {
+        expect(body.message).toBe(
+          'Course time slot endHour must be greater than startHour.',
+        );
+      });
   });
 });
 

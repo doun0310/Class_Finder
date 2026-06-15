@@ -78,6 +78,7 @@ That pre-launch step now includes Prisma migration deployment automatically.
 Flutter:
 
 ```bash
+dart format --output=none --set-exit-if-changed lib test
 flutter analyze
 flutter test
 ```
@@ -91,8 +92,10 @@ npm run test:e2e
 ```
 
 GitHub Actions runs the same checks from `.github/workflows/ci.yml`.
+CodeQL, Dependency Review, and Dependabot are configured under `.github/` for security scanning and dependency maintenance.
 
 More detailed production steps are documented in [RELEASE_CHECKLIST.md](/D:/Class_Finder/RELEASE_CHECKLIST.md) and [SOCIAL_LOGIN_SETUP.md](/D:/Class_Finder/SOCIAL_LOGIN_SETUP.md).
+Current completion and release blockers are tracked in [PROJECT_STATUS.md](/D:/Class_Finder/PROJECT_STATUS.md).
 
 ## Limitation
 

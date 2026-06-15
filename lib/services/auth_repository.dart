@@ -130,7 +130,12 @@ class LocalAuthRepository implements AuthRepository {
     if (raw == null) {
       return {};
     }
-    return Map<String, dynamic>.from(jsonDecode(raw) as Map);
+
+    try {
+      return Map<String, dynamic>.from(jsonDecode(raw) as Map);
+    } catch (_) {
+      return {};
+    }
   }
 
   Future<void> _writeUsers(Map<String, dynamic> users) async {
@@ -144,7 +149,12 @@ class LocalAuthRepository implements AuthRepository {
     if (raw == null) {
       return {};
     }
-    return Map<String, dynamic>.from(jsonDecode(raw) as Map);
+
+    try {
+      return Map<String, dynamic>.from(jsonDecode(raw) as Map);
+    } catch (_) {
+      return {};
+    }
   }
 
   Future<void> _writeAttempts(Map<String, dynamic> attempts) async {
@@ -163,8 +173,6 @@ class LocalAuthRepository implements AuthRepository {
     required String email,
     required String password,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 600));
-
     final emailKey = email.trim().toLowerCase();
     final users = await _readUsers();
     final attempts = await _readAttempts();
@@ -233,8 +241,6 @@ class LocalAuthRepository implements AuthRepository {
     AuthProvider provider, {
     SocialAuthPayload? payload,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 300));
-
     final users = await _readUsers();
     final token = _randomToken();
     final emailKey = (payload?.email?.trim().isNotEmpty ?? false)
@@ -292,8 +298,6 @@ class LocalAuthRepository implements AuthRepository {
     required String department,
     required int grade,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 700));
-
     final emailKey = email.trim().toLowerCase();
     final users = await _readUsers();
     if (users.containsKey(emailKey)) {
@@ -336,7 +340,6 @@ class LocalAuthRepository implements AuthRepository {
 
   @override
   Future<String> requestPasswordReset({required String email}) async {
-    await Future.delayed(const Duration(milliseconds: 650));
     return '입력한 이메일이 등록되어 있다면 비밀번호 재설정 안내를 보냈습니다.';
   }
 
@@ -369,7 +372,6 @@ class LocalAuthRepository implements AuthRepository {
 
   @override
   Future<User> updateProfile(User user) async {
-    await Future.delayed(const Duration(milliseconds: 300));
     final users = await _readUsers();
     final emailKey = user.email.toLowerCase();
     if (!users.containsKey(emailKey)) {
@@ -555,6 +557,12 @@ class RemoteAuthRepository implements AuthRepository {
         }
         return AuthException(AuthErrorCode.unknown, error.message);
       case 401:
+        if (provider != null) {
+          return AuthException(
+            AuthErrorCode.socialUnavailable,
+            '${provider.label} 로그인 인증을 확인하지 못했습니다. 다시 시도해 주세요.',
+          );
+        }
         return const AuthException(
           AuthErrorCode.wrongPassword,
           '비밀번호가 일치하지 않습니다.',

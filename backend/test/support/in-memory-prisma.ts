@@ -215,6 +215,45 @@ export class InMemoryPrismaService {
       }
       return { count };
     },
+    deleteMany: async ({
+      where,
+    }: {
+      where: {
+        userId?: string;
+        OR?: Array<{
+          expiresAt?: { lte: Date };
+          revokedAt?: { not: null };
+        }>;
+      };
+    }) => {
+      let count = 0;
+      for (const [id, session] of this.sessions.entries()) {
+        if (where.userId && session.userId !== where.userId) {
+          continue;
+        }
+        const matchesOr =
+          !where.OR ||
+          where.OR.some((condition) => {
+            if (
+              condition.expiresAt?.lte &&
+              session.expiresAt.getTime() <= condition.expiresAt.lte.getTime()
+            ) {
+              return true;
+            }
+            if (condition.revokedAt?.not === null && session.revokedAt !== null) {
+              return true;
+            }
+            return false;
+          });
+        if (!matchesOr) {
+          continue;
+        }
+
+        this.sessions.delete(id);
+        count += 1;
+      }
+      return { count };
+    },
   };
 
   readonly savedTimetable = {

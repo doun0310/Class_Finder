@@ -43,7 +43,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('로컬 저장 모드'), findsOneWidget);
-    expect(find.textContaining('기기 내부 저장소'), findsOneWidget);
+    expect(find.textContaining('이 기기 안에만 저장'), findsOneWidget);
   });
 
   testWidgets('login screen shows backend storage mode notice', (tester) async {

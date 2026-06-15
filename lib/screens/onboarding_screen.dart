@@ -159,7 +159,7 @@ class _OnboardingPage extends StatelessWidget {
             data.title,
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w800,
-              letterSpacing: -0.4,
+              letterSpacing: 0,
             ),
           ),
           const SizedBox(height: 12),

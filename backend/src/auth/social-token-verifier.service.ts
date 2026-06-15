@@ -70,7 +70,7 @@ export class SocialTokenVerifier {
     input: SocialSignInDto,
   ): Promise<VerifiedSocialIdentity> {
     const idToken = this.requireText(input.idToken, 'Google ID token is required.');
-    const response = await fetch(
+    const response = await this.fetchProvider(
       `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(
         idToken,
       )}`,
@@ -105,11 +105,14 @@ export class SocialTokenVerifier {
       input.accessToken,
       'Kakao access token is required.',
     );
-    const response = await fetch('https://kapi.kakao.com/v2/user/me', {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
+    const response = await this.fetchProvider(
+      'https://kapi.kakao.com/v2/user/me',
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
       },
-    });
+    );
     const data = await this.parseProviderResponse<KakaoUserInfo>(
       response,
       'Kakao token verification failed.',
@@ -183,7 +186,36 @@ export class SocialTokenVerifier {
       throw new UnauthorizedException(message);
     }
 
-    return (await response.json()) as T;
+    try {
+      return (await response.json()) as T;
+    } catch {
+      throw new UnauthorizedException(message);
+    }
+  }
+
+  private async fetchProvider(url: string, init?: RequestInit) {
+    const timeoutMs = this.providerTimeoutMs();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      return await fetch(url, {
+        ...init,
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new UnauthorizedException('Provider token verification timed out.');
+      }
+      throw new UnauthorizedException('Provider token verification failed.');
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private providerTimeoutMs() {
+    const raw = Number(process.env.SOCIAL_PROVIDER_TIMEOUT_MS ?? '5000');
+    return Number.isFinite(raw) && raw > 0 ? raw : 5000;
   }
 
   private decodeJwt<TPayload>(token: string) {
@@ -210,7 +242,9 @@ export class SocialTokenVerifier {
 
   private async getAppleSigningKey(kid: string) {
     if (this.appleKeys.length === 0 || this.appleKeysExpiresAt <= Date.now()) {
-      const response = await fetch('https://appleid.apple.com/auth/keys');
+      const response = await this.fetchProvider(
+        'https://appleid.apple.com/auth/keys',
+      );
       const data = await this.parseProviderResponse<AppleJwkSet>(
         response,
         'Apple signing keys could not be loaded.',
@@ -285,9 +319,5 @@ export class SocialTokenVerifier {
   private trimOrUndefined(value: string | undefined) {
     const trimmed = value?.trim();
     return trimmed && trimmed.length > 0 ? trimmed : undefined;
-  }
-
-  private hasText(value: string | undefined) {
-    return value !== undefined && value.trim().length > 0;
   }
 }

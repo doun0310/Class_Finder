@@ -47,13 +47,11 @@ class RuntimeConfig {
 
   String get modeBadge => usesBackend ? '서버 저장 모드' : '로컬 저장 모드';
 
-  String get modeTitle => usesBackend
-      ? '현재 서버와 연결되어 있습니다'
-      : '현재 이 기기에만 저장됩니다';
+  String get modeTitle => usesBackend ? '현재 서버와 연결되어 있습니다' : '현재 이 기기에만 저장됩니다';
 
   String get modeDescription => usesBackend
-      ? '계정과 시간표가 서버에 저장됩니다. 앱을 다시 실행해도 같은 계정으로 로그인할 수 있습니다.'
-      : '현재 실행은 기기 내부 저장소를 사용합니다. 서버 저장이 필요하면 run_with_backend.ps1 또는 API_BASE_URL 설정으로 실행하세요.';
+      ? '계정과 시간표가 서버에 저장됩니다.'
+      : '현재는 이 기기 안에만 저장됩니다. 서버 저장이 필요하면 run_with_backend.ps1 또는 API_BASE_URL로 실행하세요.';
 
   String? get modeHint => usesLocalhostBackend
       ? '현재 API_BASE_URL이 로컬 주소를 가리키고 있습니다. 실배포 빌드에서는 외부에서 접근 가능한 HTTPS 주소로 바꾸세요.'

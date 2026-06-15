@@ -72,26 +72,26 @@ class _SignupScreenState extends State<SignupScreen> {
 
     return AuthShell(
       badge: '회원가입',
-      title: '새 계정을 만들어 주세요',
-      subtitle: '기본 정보를 입력하면 시간표 저장과 계정 관리를 바로 시작할 수 있습니다.',
-      heroTitle: '학기 동안 계속 쓰는\n내 시간표 계정',
-      heroSubtitle: '학과, 학년, 학번 정보를 등록해 두면 저장한 시간표와 계정 정보를 한곳에서 관리할 수 있습니다.',
+      title: '회원가입',
+      subtitle: '이메일과 기본 학적 정보를 등록합니다.',
+      heroTitle: '처음 쓰는\n내 시간표 계정',
+      heroSubtitle: '학과와 학년을 저장해 추천 조건의 기본값으로 사용합니다.',
       icon: Icons.person_add_alt_1_rounded,
       features: const [
         AuthFeatureItem(
           icon: Icons.tune_rounded,
-          title: '기본 정보 등록',
-          description: '학과와 학년 정보를 입력해 계정 구성을 마칩니다.',
+          title: '기본 정보',
+          description: '학과, 학년, 학번을 저장합니다.',
         ),
         AuthFeatureItem(
           icon: Icons.sync_rounded,
-          title: '저장 내용 함께 관리',
-          description: '저장한 시간표와 계정 정보를 같은 계정으로 유지합니다.',
+          title: '저장 목록',
+          description: '마음에 드는 시간표를 계정에 저장합니다.',
         ),
         AuthFeatureItem(
           icon: Icons.devices_rounded,
-          title: '기기 변경에도 유지',
-          description: '다른 기기에서 로그인해도 같은 정보로 이어서 사용할 수 있습니다.',
+          title: '다른 기기',
+          description: '로그인하면 저장한 내용을 다시 확인합니다.',
         ),
       ],
       metrics: const [
@@ -100,7 +100,7 @@ class _SignupScreenState extends State<SignupScreen> {
         AuthMetricItem(value: '계정 기반', label: '저장 내용 관리'),
       ],
       footer: Text(
-        '가입을 완료하면 바로 홈으로 이동하고, 이후 저장 기능과 계정 관리를 계속 사용할 수 있습니다.',
+        '가입 후 바로 시간표 추천을 시작할 수 있습니다.',
         style: theme.textTheme.bodySmall?.copyWith(
           color: theme.colorScheme.onSurfaceVariant,
         ),
@@ -148,7 +148,7 @@ class _SignupScreenState extends State<SignupScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '입력한 정보는 계정 생성과 저장 정보 구분에 사용됩니다.',
+                          '입력한 정보는 추천 조건과 저장 목록 구분에 사용됩니다.',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onPrimaryContainer
                                 .withValues(alpha: 0.82),

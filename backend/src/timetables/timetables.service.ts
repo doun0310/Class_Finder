@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   CourseCategory as PrismaCourseCategory,
   Prisma,
@@ -49,7 +53,9 @@ export class TimetablesService {
         userId,
         name: this.normalizeName(input.name),
         score: input.score,
-        scoreBreakdown: input.scoreBreakdown,
+        scoreBreakdown: this.normalizeIncomingScoreBreakdown(
+          input.scoreBreakdown,
+        ),
         courses: {
           create: input.courses.map((course, position) =>
             this.toCourseCreateInput(course, position),
@@ -109,6 +115,7 @@ export class TimetablesService {
     position: number,
   ): Prisma.SavedTimetableCourseCreateWithoutTimetableInput {
     const [courseCode, section = '001'] = course.id.split('-');
+    this.assertValidTimeSlots(course);
 
     return {
       externalId: course.id,
@@ -168,6 +175,38 @@ export class TimetablesService {
   private normalizeName(value: string) {
     const trimmed = value.trim();
     return trimmed.length === 0 ? 'Saved Timetable' : trimmed;
+  }
+
+  private normalizeIncomingScoreBreakdown(value: Record<string, unknown>) {
+    const entries = Object.entries(value);
+    if (entries.length > 30) {
+      throw new BadRequestException('Score breakdown has too many entries.');
+    }
+
+    return Object.fromEntries(
+      entries.map(([key, raw]) => {
+        const trimmedKey = key.trim();
+        if (trimmedKey.length === 0 || trimmedKey.length > 40) {
+          throw new BadRequestException('Score breakdown key is invalid.');
+        }
+        if (typeof raw !== 'number' || !Number.isFinite(raw)) {
+          throw new BadRequestException(
+            'Score breakdown values must be finite numbers.',
+          );
+        }
+        return [trimmedKey, raw];
+      }),
+    );
+  }
+
+  private assertValidTimeSlots(course: TimetableCourseDto) {
+    for (const slot of course.timeSlots) {
+      if (slot.endHour <= slot.startHour) {
+        throw new BadRequestException(
+          'Course time slot endHour must be greater than startHour.',
+        );
+      }
+    }
   }
 
   private normalizeScoreBreakdown(

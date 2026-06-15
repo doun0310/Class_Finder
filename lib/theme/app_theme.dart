@@ -114,7 +114,7 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         titleTextStyle: textTheme.titleLarge?.copyWith(
           fontWeight: FontWeight.w800,
-          letterSpacing: -0.4,
+          letterSpacing: 0,
         ),
       ),
       cardTheme: CardThemeData(

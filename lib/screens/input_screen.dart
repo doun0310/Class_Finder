@@ -871,7 +871,7 @@ class _PreferenceHero extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             '전공과 교양을 분리해서 선택하고, 학년별 전공필수를 함께 반영합니다.',
-            style: theme.textTheme.headlineSmall?.copyWith(letterSpacing: -0.6),
+            style: theme.textTheme.headlineSmall?.copyWith(letterSpacing: 0),
           ),
           const SizedBox(height: 10),
           Text(

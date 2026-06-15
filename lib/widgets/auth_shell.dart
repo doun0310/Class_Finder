@@ -297,7 +297,7 @@ class _HeroPanel extends StatelessWidget {
               title,
               style: theme.textTheme.headlineLarge?.copyWith(
                 height: 1.05,
-                letterSpacing: -1.2,
+                letterSpacing: 0,
               ),
             ),
             const SizedBox(height: 14),
@@ -419,7 +419,7 @@ class _MetricCard extends StatelessWidget {
             metric.value,
             style: theme.textTheme.headlineSmall?.copyWith(
               color: scheme.primary,
-              letterSpacing: -0.6,
+              letterSpacing: 0,
             ),
           ),
           const SizedBox(height: 6),

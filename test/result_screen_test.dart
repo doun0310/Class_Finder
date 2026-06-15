@@ -22,6 +22,47 @@ void main() {
     SharedPreferences.setMockInitialValues({'auth.token': 'token'});
   });
 
+  testWidgets('result screen does not overflow on narrow screens', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final user = _sampleUser();
+    final authService = AuthService(
+      _SeededAuthRepository(user: user),
+      socialAuth: _FakeSocialAuthService(),
+    );
+    await authService.loadSession();
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: authService),
+          ChangeNotifierProvider<AppState>(
+            create: (_) => _SeededAppState(_sampleTimetable()),
+          ),
+          Provider<TimetableRepository>.value(
+            value: _BlockingTimetableRepository(user: user),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light(),
+          home: MediaQuery(
+            data: MediaQueryData.fromView(
+              tester.view,
+            ).copyWith(textScaler: const TextScaler.linear(1.2)),
+            child: const ResultScreen(),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('result screen blocks duplicate timetable saves', (tester) async {
     final user = _sampleUser();
     final authService = AuthService(
@@ -58,12 +99,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('시간표 저장'), findsOneWidget);
-
-    await tester.tap(find.widgetWithText(FilledButton, '저장'));
-    await tester.pump();
-
     expect(repository.saveCalls, 1);
+    expect(repository.lastSavedName, isNotEmpty);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
     await tester.tap(saveButton, warnIfMissed: false);
@@ -75,7 +112,12 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('시간표를 저장했습니다.'), findsOneWidget);
+    expect(find.textContaining('저장 완료'), findsOneWidget);
+    expect(repository.saveCalls, 1);
+
+    await tester.tap(saveButton, warnIfMissed: false);
+    await tester.pump();
+
     expect(repository.saveCalls, 1);
   });
 }
@@ -105,6 +147,7 @@ class _SeededAppState extends AppState {
 class _BlockingTimetableRepository extends TimetableRepository {
   final User user;
   int saveCalls = 0;
+  String? lastSavedName;
   Completer<SavedTimetable>? _saveCompleter;
 
   _BlockingTimetableRepository({required this.user});
@@ -119,6 +162,7 @@ class _BlockingTimetableRepository extends TimetableRepository {
     required Timetable timetable,
   }) {
     saveCalls += 1;
+    lastSavedName = name;
     _saveCompleter = Completer<SavedTimetable>();
     return _saveCompleter!.future;
   }

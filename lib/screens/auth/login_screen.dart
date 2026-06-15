@@ -90,16 +90,16 @@ class _LoginScreenState extends State<LoginScreen> {
 
     return AuthShell(
       badge: '계정 로그인',
-      title: '계정에 로그인해 계속 이용하세요',
-      subtitle: '저장한 시간표와 계정 정보를 불러와 바로 이어서 사용할 수 있습니다.',
-      heroTitle: '학교 생활에 맞춘\n시간표 관리',
-      heroSubtitle: '저장한 시간표, 학년 정보, 로그인 상태를 한 계정에서 관리하고 필요할 때 다시 불러올 수 있습니다.',
+      title: '로그인',
+      subtitle: '저장한 시간표와 프로필을 불러옵니다.',
+      heroTitle: '내 시간표를\n다시 불러오기',
+      heroSubtitle: '저장해 둔 시간표와 학과 정보를 계정에 맞춰 불러옵니다.',
       icon: Icons.lock_person_rounded,
       features: const [
         AuthFeatureItem(
           icon: Icons.schedule_send_rounded,
-          title: '저장 내용 바로 불러오기',
-          description: '저장한 시간표와 최근 사용 기록을 같은 계정에서 확인합니다.',
+          title: '저장 시간표',
+          description: '전에 저장한 시간표를 다시 엽니다.',
         ),
         AuthFeatureItem(
           icon: Icons.bookmark_added_rounded,
@@ -108,8 +108,8 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         AuthFeatureItem(
           icon: Icons.verified_user_rounded,
-          title: '기기 변경에도 유지',
-          description: '기기 교체나 재설치 이후에도 같은 계정으로 이어서 사용할 수 있습니다.',
+          title: '계정 기준 저장',
+          description: '다른 기기에서도 같은 계정으로 확인합니다.',
         ),
       ],
       metrics: const [
@@ -118,7 +118,7 @@ class _LoginScreenState extends State<LoginScreen> {
         AuthMetricItem(value: '학기별', label: '사용 기록 관리'),
       ],
       footer: Text(
-        '로그인하면 저장한 시간표와 계정 정보를 같은 흐름 안에서 계속 관리할 수 있습니다.',
+        '저장한 시간표는 로그인한 계정 기준으로 보관됩니다.',
         style: theme.textTheme.bodySmall?.copyWith(
           color: theme.colorScheme.onSurfaceVariant,
         ),
@@ -132,8 +132,8 @@ class _LoginScreenState extends State<LoginScreen> {
               icon: Icons.shield_outlined,
               backgroundColor: theme.colorScheme.secondaryContainer,
               foregroundColor: theme.colorScheme.onSecondaryContainer,
-              title: '계정 연결 확인',
-              description: '계정에 연결된 저장 시간표와 프로필 정보를 불러옵니다.',
+              title: '계정 저장소',
+              description: '로그인하면 이 계정에 저장된 시간표를 불러옵니다.',
             ),
             const SizedBox(height: 14),
             RuntimeModeNotice(config: runtimeConfig),
@@ -208,7 +208,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      '로그인하면 저장한 시간표와 계정 정보를 한 번에 확인할 수 있습니다.',
+                      '저장한 시간표는 이 계정에 연결됩니다.',
                       style: theme.textTheme.bodySmall,
                     ),
                   ),

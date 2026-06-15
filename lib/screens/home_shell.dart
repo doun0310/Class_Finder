@@ -68,23 +68,23 @@ class _HomeShellState extends State<HomeShell> {
                   setState(() => _currentIndex = index),
               destinations: const [
                 NavigationDestination(
-                  icon: Icon(Icons.home_outlined),
-                  selectedIcon: Icon(Icons.home_rounded),
+                  icon: Icon(Icons.space_dashboard_outlined),
+                  selectedIcon: Icon(Icons.space_dashboard_rounded),
                   label: '홈',
                 ),
                 NavigationDestination(
-                  icon: Icon(Icons.calendar_month_outlined),
-                  selectedIcon: Icon(Icons.calendar_month_rounded),
+                  icon: Icon(Icons.calendar_view_week_outlined),
+                  selectedIcon: Icon(Icons.calendar_view_week_rounded),
                   label: '시간표',
                 ),
                 NavigationDestination(
-                  icon: Icon(Icons.search_outlined),
-                  selectedIcon: Icon(Icons.search),
+                  icon: Icon(Icons.manage_search_outlined),
+                  selectedIcon: Icon(Icons.manage_search_rounded),
                   label: '탐색',
                 ),
                 NavigationDestination(
-                  icon: Icon(Icons.person_outline),
-                  selectedIcon: Icon(Icons.person),
+                  icon: Icon(Icons.account_circle_outlined),
+                  selectedIcon: Icon(Icons.account_circle_rounded),
                   label: '프로필',
                 ),
               ],

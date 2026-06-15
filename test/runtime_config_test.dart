@@ -10,7 +10,9 @@ void main() {
     expect(config.modeTitle, '현재 이 기기에만 저장됩니다');
     expect(
       config.releaseWarnings,
-      contains('API_BASE_URL이 없어 서버 저장이 비활성화되어 있습니다. 릴리스 빌드에서는 외부 HTTPS API 주소를 넣어 주세요.'),
+      contains(
+        'API_BASE_URL이 없어 서버 저장이 비활성화되어 있습니다. 릴리스 빌드에서는 외부 HTTPS API 주소를 넣어 주세요.',
+      ),
     );
   });
 
@@ -22,7 +24,9 @@ void main() {
     expect(config.modeHint, contains('로컬 주소'));
     expect(
       config.releaseWarnings,
-      contains('API_BASE_URL이 localhost 계열 주소입니다. 실서비스에서는 외부 HTTPS API 주소가 필요합니다.'),
+      contains(
+        'API_BASE_URL이 localhost 계열 주소입니다. 실서비스에서는 외부 HTTPS API 주소가 필요합니다.',
+      ),
     );
   });
 

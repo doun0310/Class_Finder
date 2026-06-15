@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/saved_timetable.dart';
+import '../models/user.dart';
 import '../services/auth_service.dart';
 import '../services/timetable_repository.dart';
 import '../theme/app_theme.dart';
@@ -26,6 +27,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _load() async {
+    if (!mounted) {
+      return;
+    }
     setState(() => _loading = true);
     final user = context.read<AuthService>().user;
     final repository = context.read<TimetableRepository>();
@@ -72,11 +76,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   name: user?.name ?? '게스트',
                   department: user?.department ?? '강의와 시간표를 한곳에서 확인',
                   savedCount: _saved.length,
-                  onNotifications: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('새 알림이 없습니다.')),
-                    );
-                  },
+                  onStatusTap: () => _openStatusSheet(user),
                 ),
               ),
             ),
@@ -88,7 +88,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     Expanded(
                       child: _ActionCard(
                         color: AppTheme.blue,
-                        icon: Icons.calendar_month_rounded,
+                        icon: Icons.calendar_view_week_rounded,
                         title: '시간표 만들기',
                         subtitle: '선택한 조건에 맞는 시간표 조합을 빠르게 확인합니다.',
                         onTap: () => widget.onNavigate?.call(1),
@@ -98,7 +98,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     Expanded(
                       child: _ActionCard(
                         color: AppTheme.cyan,
-                        icon: Icons.search_rounded,
+                        icon: Icons.manage_search_rounded,
                         title: '강의 탐색',
                         subtitle: '학년, 평점, 팀프로젝트 기준으로 비교합니다.',
                         onTap: () => widget.onNavigate?.call(2),
@@ -126,10 +126,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     const Spacer(),
                     if (_saved.isNotEmpty)
                       TextButton(
-                        onPressed: () => Navigator.pushNamed(
-                          context,
-                          '/saved',
-                        ).then((_) => _load()),
+                        onPressed: _openSaved,
                         child: const Text('전체 보기'),
                       ),
                   ],
@@ -159,13 +156,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   itemCount: _saved.take(3).length,
                   itemBuilder: (context, index) {
                     final saved = _saved[index];
-                    return _SavedTimetableCard(
-                      saved: saved,
-                      onTap: () => Navigator.pushNamed(
-                        context,
-                        '/saved',
-                      ).then((_) => _load()),
-                    );
+                    return _SavedTimetableCard(saved: saved, onTap: _openSaved);
                   },
                   separatorBuilder: (context, index) =>
                       const SizedBox(height: 12),
@@ -186,6 +177,202 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
     return '좋은 저녁이에요';
   }
+
+  Future<void> _openSaved() async {
+    await Navigator.pushNamed(context, '/saved');
+    if (mounted) {
+      await _load();
+    }
+  }
+
+  void _openStatusSheet(User? user) {
+    final savedSnapshot = List<SavedTimetable>.unmodifiable(_saved);
+
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheetContext) => _DashboardStatusSheet(
+        user: user,
+        saved: savedSnapshot,
+        onCreate: () {
+          Navigator.pop(sheetContext);
+          widget.onNavigate?.call(1);
+        },
+        onProfile: () {
+          Navigator.pop(sheetContext);
+          widget.onNavigate?.call(3);
+        },
+        onSaved: () {
+          Navigator.pop(sheetContext);
+          _openSaved();
+        },
+      ),
+    );
+  }
+}
+
+class _DashboardStatusSheet extends StatelessWidget {
+  final User? user;
+  final List<SavedTimetable> saved;
+  final VoidCallback onCreate;
+  final VoidCallback onProfile;
+  final VoidCallback onSaved;
+
+  const _DashboardStatusSheet({
+    required this.user,
+    required this.saved,
+    required this.onCreate,
+    required this.onProfile,
+    required this.onSaved,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final profileReady =
+        user != null && user!.profileComplete && user!.hasRequiredProfile;
+    final latest = saved.isEmpty ? null : saved.first;
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.only(bottom: bottomInset),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 2, 20, 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('진행 상태', style: theme.textTheme.titleLarge),
+              const SizedBox(height: 6),
+              Text('추천 전에 확인할 항목입니다.', style: theme.textTheme.bodySmall),
+              const SizedBox(height: 18),
+              _StatusRow(
+                icon: profileReady
+                    ? Icons.verified_user_outlined
+                    : Icons.assignment_ind_outlined,
+                color: profileReady ? AppTheme.leaf : AppTheme.coral,
+                title: profileReady ? '프로필 준비 완료' : '프로필 정보 필요',
+                body: profileReady
+                    ? '${user!.department} · ${user!.grade}학년 기준으로 시간표를 만들 수 있습니다.'
+                    : '학번, 학과, 학년을 입력해야 전공 조건을 맞출 수 있습니다.',
+              ),
+              _StatusRow(
+                icon: saved.isEmpty
+                    ? Icons.bookmark_border_rounded
+                    : Icons.bookmark_added_outlined,
+                color: saved.isEmpty ? AppTheme.cyan : AppTheme.blue,
+                title: saved.isEmpty
+                    ? '저장한 시간표 없음'
+                    : '저장한 시간표 ${saved.length}개',
+                body: saved.isEmpty
+                    ? '결과 화면에서 마음에 드는 시간표를 저장하세요.'
+                    : '저장 목록에서 이름 변경과 삭제를 할 수 있습니다.',
+              ),
+              _StatusRow(
+                icon: Icons.history_rounded,
+                color: theme.colorScheme.tertiary,
+                title: latest == null ? '최근 저장 기록 없음' : '최근 저장: ${latest.name}',
+                body: latest == null
+                    ? '조건을 입력해 첫 시간표를 만들어 보세요.'
+                    : '${_formatSavedAt(latest.savedAt)} · ${latest.totalCredits}학점 · 적합도 ${(latest.score * 100).toStringAsFixed(0)}점',
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  if (!profileReady)
+                    FilledButton.icon(
+                      onPressed: onProfile,
+                      icon: const Icon(Icons.edit_outlined),
+                      label: const Text('프로필 수정'),
+                    ),
+                  if (saved.isEmpty)
+                    FilledButton.icon(
+                      onPressed: onCreate,
+                      icon: const Icon(Icons.calendar_view_week_rounded),
+                      label: const Text('시간표 만들기'),
+                    )
+                  else
+                    OutlinedButton.icon(
+                      onPressed: onSaved,
+                      icon: const Icon(Icons.bookmark_added_outlined),
+                      label: const Text('저장 목록'),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatSavedAt(DateTime value) {
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
+    return '${value.month}/${value.day} $hour:$minute';
+  }
+}
+
+class _StatusRow extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String body;
+
+  const _StatusRow({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.body,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: color),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall,
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  body,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _HeroPanel extends StatelessWidget {
@@ -193,14 +380,14 @@ class _HeroPanel extends StatelessWidget {
   final String name;
   final String department;
   final int savedCount;
-  final VoidCallback onNotifications;
+  final VoidCallback onStatusTap;
 
   const _HeroPanel({
     required this.greeting,
     required this.name,
     required this.department,
     required this.savedCount,
-    required this.onNotifications,
+    required this.onStatusTap,
   });
 
   @override
@@ -244,18 +431,21 @@ class _HeroPanel extends StatelessWidget {
               ),
               const Spacer(),
               IconButton.filledTonal(
-                onPressed: onNotifications,
+                tooltip: '진행 상태',
+                onPressed: onStatusTap,
                 style: IconButton.styleFrom(
                   backgroundColor: Colors.white.withValues(alpha: 0.12),
                   foregroundColor: Colors.white,
                 ),
-                icon: const Icon(Icons.notifications_none_rounded),
+                icon: const Icon(Icons.fact_check_outlined),
               ),
             ],
           ),
           const SizedBox(height: 24),
           Text(
             greeting,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodyLarge?.copyWith(
               color: Colors.white.withValues(alpha: 0.82),
             ),
@@ -263,14 +453,18 @@ class _HeroPanel extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             '$name 님의 시간표 현황',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: theme.textTheme.headlineSmall?.copyWith(
               color: Colors.white,
-              letterSpacing: -0.6,
+              letterSpacing: 0,
             ),
           ),
           const SizedBox(height: 10),
           Text(
             department,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: Colors.white.withValues(alpha: 0.78),
             ),
@@ -318,6 +512,8 @@ class _MetricTile extends StatelessWidget {
         children: [
           Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: theme.textTheme.labelMedium?.copyWith(
               color: Colors.white.withValues(alpha: 0.75),
             ),
@@ -325,6 +521,8 @@ class _MetricTile extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: theme.textTheme.titleMedium?.copyWith(color: Colors.white),
           ),
         ],
@@ -375,9 +573,19 @@ class _ActionCard extends StatelessWidget {
                 child: Icon(icon, color: color),
               ),
               const SizedBox(height: 16),
-              Text(title, style: theme.textTheme.titleMedium),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleMedium,
+              ),
               const SizedBox(height: 6),
-              Text(subtitle, style: theme.textTheme.bodySmall),
+              Text(
+                subtitle,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall,
+              ),
             ],
           ),
         ),
@@ -451,7 +659,7 @@ class _FlowGuideCard extends StatelessWidget {
           const _GuideStep(
             number: '3',
             title: '저장 후 다시 확인',
-            body: '저장한 시간표는 홈과 저장 목록에서 계속 볼 수 있습니다.',
+            body: '저장한 시간표는 홈과 저장 목록에서 다시 엽니다.',
           ),
           const SizedBox(height: 16),
           Wrap(
@@ -460,12 +668,12 @@ class _FlowGuideCard extends StatelessWidget {
             children: [
               FilledButton.icon(
                 onPressed: onStart,
-                icon: const Icon(Icons.calendar_month_rounded),
+                icon: const Icon(Icons.calendar_view_week_rounded),
                 label: const Text('시간표 만들기'),
               ),
               OutlinedButton.icon(
                 onPressed: onExplore,
-                icon: const Icon(Icons.search_rounded),
+                icon: const Icon(Icons.manage_search_rounded),
                 label: const Text('강의 먼저 보기'),
               ),
             ],
@@ -569,10 +777,17 @@ class _SavedTimetableCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(saved.name, style: theme.textTheme.titleMedium),
+                    Text(
+                      saved.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium,
+                    ),
                     const SizedBox(height: 4),
                     Text(
                       '${saved.totalCredits}학점 · 공강 ${saved.freeDays}일 · 적합도 ${(saved.score * 100).toStringAsFixed(0)}점',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall,
                     ),
                   ],
@@ -624,7 +839,7 @@ class _EmptyState extends StatelessWidget {
           Text('아직 저장된 시간표가 없습니다.', style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
           Text(
-            '조건을 입력하면 바로 시간표를 만들어 볼 수 있습니다.',
+            '조건을 입력하면 시간표 후보를 만들 수 있습니다.',
             style: theme.textTheme.bodySmall,
             textAlign: TextAlign.center,
           ),

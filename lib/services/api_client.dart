@@ -1,21 +1,28 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-/// 백엔드 서버와 통신하기 위한 공용 HTTP 클라이언트입니다.
+/// Shared HTTP client for backend API calls.
 class ApiClient {
   static const _networkErrorMessage =
       '서버에 연결할 수 없습니다. 백엔드 실행 상태와 네트워크를 확인해 주세요.';
+  static const _invalidResponseMessage = '서버 응답 형식이 올바르지 않습니다.';
+  static const _timeoutMessage = '서버 응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.';
 
   final String baseUrl;
   final http.Client _client;
+  final Duration requestTimeout;
   String? _token;
 
-  ApiClient({required String baseUrl, http.Client? client})
-    : baseUrl = baseUrl.endsWith('/')
-          ? baseUrl.substring(0, baseUrl.length - 1)
-          : baseUrl,
-      _client = client ?? http.Client();
+  ApiClient({
+    required String baseUrl,
+    http.Client? client,
+    this.requestTimeout = const Duration(seconds: 10),
+  }) : baseUrl = baseUrl.endsWith('/')
+           ? baseUrl.substring(0, baseUrl.length - 1)
+           : baseUrl,
+       _client = client ?? http.Client();
 
   void setToken(String? token) => _token = token;
 
@@ -32,10 +39,7 @@ class ApiClient {
 
   Future<Map<String, dynamic>> get(String path, {bool withAuth = true}) async {
     final res = await _send(
-      () => _client.get(
-        Uri.parse('$baseUrl$path'),
-        headers: _headers(withAuth: withAuth),
-      ),
+      () => _client.get(_uri(path), headers: _headers(withAuth: withAuth)),
     );
     return _decode(res);
   }
@@ -47,7 +51,7 @@ class ApiClient {
   }) async {
     final res = await _send(
       () => _client.post(
-        Uri.parse('$baseUrl$path'),
+        _uri(path),
         headers: _headers(withAuth: withAuth),
         body: jsonEncode(body),
       ),
@@ -62,7 +66,7 @@ class ApiClient {
   }) async {
     final res = await _send(
       () => _client.patch(
-        Uri.parse('$baseUrl$path'),
+        _uri(path),
         headers: _headers(withAuth: withAuth),
         body: jsonEncode(body),
       ),
@@ -72,10 +76,7 @@ class ApiClient {
 
   Future<void> delete(String path, {bool withAuth = true}) async {
     final res = await _send(
-      () => _client.delete(
-        Uri.parse('$baseUrl$path'),
-        headers: _headers(withAuth: withAuth),
-      ),
+      () => _client.delete(_uri(path), headers: _headers(withAuth: withAuth)),
     );
     if (res.statusCode >= 400) {
       throw ApiException(res.statusCode, _errorMessage(res));
@@ -84,7 +85,9 @@ class ApiClient {
 
   Future<http.Response> _send(Future<http.Response> Function() request) async {
     try {
-      return await request();
+      return await request().timeout(requestTimeout);
+    } on TimeoutException {
+      throw const ApiException(0, _timeoutMessage);
     } on http.ClientException {
       throw const ApiException(0, _networkErrorMessage);
     }
@@ -95,20 +98,35 @@ class ApiClient {
       throw ApiException(res.statusCode, _errorMessage(res));
     }
     if (res.body.isEmpty) return {};
-    return jsonDecode(res.body) as Map<String, dynamic>;
+
+    try {
+      final body = jsonDecode(res.body);
+      if (body is Map) {
+        return Map<String, dynamic>.from(body);
+      }
+    } on FormatException {
+      throw ApiException(res.statusCode, _invalidResponseMessage);
+    }
+
+    throw ApiException(res.statusCode, _invalidResponseMessage);
   }
 
   String _errorMessage(http.Response res) {
     try {
       final body = jsonDecode(res.body);
       if (body is Map && body['message'] is String) {
-        return body['message'];
+        return body['message'] as String;
       }
       if (body is Map && body['message'] is List) {
         return (body['message'] as List).join(', ');
       }
     } catch (_) {}
     return '서버 오류 (${res.statusCode})';
+  }
+
+  Uri _uri(String path) {
+    final normalizedPath = path.startsWith('/') ? path : '/$path';
+    return Uri.parse('$baseUrl$normalizedPath');
   }
 
   void dispose() => _client.close();

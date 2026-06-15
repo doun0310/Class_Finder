@@ -124,7 +124,10 @@ class LocalTimetableRepository extends TimetableRepository {
 
   Future<void> _writeAll(List<SavedTimetable> list) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_key, jsonEncode(list.map((t) => t.toJson()).toList()));
+    await prefs.setString(
+      _key,
+      jsonEncode(list.map((t) => t.toJson()).toList()),
+    );
   }
 
   static String _randomId() {
@@ -162,9 +165,7 @@ class RemoteTimetableRepository extends TimetableRepository {
     } on ApiException catch (error) {
       throw TimetableRepositoryException(error.message);
     } catch (_) {
-      throw const TimetableRepositoryException(
-        '저장된 시간표를 불러오지 못했습니다.',
-      );
+      throw const TimetableRepositoryException('저장된 시간표를 불러오지 못했습니다.');
     }
   }
 
@@ -188,9 +189,7 @@ class RemoteTimetableRepository extends TimetableRepository {
     } on ApiException catch (error) {
       throw TimetableRepositoryException(error.message);
     } catch (_) {
-      throw const TimetableRepositoryException(
-        '시간표를 서버에 저장하지 못했습니다.',
-      );
+      throw const TimetableRepositoryException('시간표를 서버에 저장하지 못했습니다.');
     }
   }
 
@@ -214,15 +213,11 @@ class RemoteTimetableRepository extends TimetableRepository {
   }) async {
     try {
       await _restoreToken();
-      await client.patch('/users/${user.id}/timetables/$id', {
-        'name': newName,
-      });
+      await client.patch('/users/${user.id}/timetables/$id', {'name': newName});
     } on ApiException catch (error) {
       throw TimetableRepositoryException(error.message);
     } catch (_) {
-      throw const TimetableRepositoryException(
-        '시간표 이름을 변경하지 못했습니다.',
-      );
+      throw const TimetableRepositoryException('시간표 이름을 변경하지 못했습니다.');
     }
   }
 

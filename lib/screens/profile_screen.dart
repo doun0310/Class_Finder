@@ -60,7 +60,7 @@ class ProfileScreen extends StatelessWidget {
                   const SizedBox(height: 16),
                   _SectionCard(
                     title: '계정 정보',
-                    subtitle: '시간표 생성과 저장에 연결되는 기본 프로필입니다.',
+                    subtitle: '시간표 추천과 저장에 쓰는 기본 프로필입니다.',
                     child: Column(
                       children: [
                         _DetailTile(
@@ -374,7 +374,7 @@ class _ProfileHeroCard extends StatelessWidget {
           ),
           const SizedBox(height: 22),
           Text(
-            '시간표 생성과 저장 흐름이 계정에 연결되어 있습니다.',
+            '시간표 추천과 저장이 이 계정에 연결됩니다.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: scheme.onSurfaceVariant,
             ),
@@ -1000,7 +1000,7 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
             Text('프로필 수정', style: theme.textTheme.headlineSmall),
             const SizedBox(height: 8),
             Text(
-              '시간표 생성과 저장에 연결되는 기본 정보를 업데이트합니다.',
+              '시간표 추천과 저장에 쓰는 기본 정보를 업데이트합니다.',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),

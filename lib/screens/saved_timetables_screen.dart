@@ -150,7 +150,9 @@ class _SavedTimetablesScreenState extends State<SavedTimetablesScreen> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -219,6 +221,8 @@ class _SavedTimetableCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       saved.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -277,18 +281,18 @@ class _SavedTimetableCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              Row(
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
                 children: [
                   _MetricChip(
                     icon: Icons.credit_card_outlined,
                     label: '${saved.totalCredits}학점',
                   ),
-                  const SizedBox(width: 6),
                   _MetricChip(
                     icon: Icons.coffee_outlined,
                     label: '공강 ${saved.freeDays}일',
                   ),
-                  const SizedBox(width: 6),
                   _MetricChip(
                     icon: Icons.emoji_events_outlined,
                     label: '${(saved.score * 100).toStringAsFixed(0)}점',
@@ -301,25 +305,32 @@ class _SavedTimetableCard extends StatelessWidget {
                 spacing: 4,
                 runSpacing: 4,
                 children: [
-                  ...saved.courses.take(4).map(
-                    (course) => Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        course.name,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
+                  ...saved.courses
+                      .take(4)
+                      .map(
+                        (course) => ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 180),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              course.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
                   if (saved.courses.length > 4)
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -467,8 +478,10 @@ class _SavedTimetableDetailScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             color: theme.colorScheme.surfaceContainerLow,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+            child: Wrap(
+              alignment: WrapAlignment.spaceAround,
+              runSpacing: 12,
+              spacing: 12,
               children: [
                 _DetailStat('학점', '${saved.totalCredits}', Icons.credit_card),
                 _DetailStat('공강', '${saved.freeDays}일', Icons.coffee),
@@ -514,19 +527,29 @@ class _DetailStat extends StatelessWidget {
         ? theme.colorScheme.primary
         : theme.colorScheme.onSurfaceVariant;
 
-    return Column(
-      children: [
-        Icon(icon, size: 20, color: color),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: color,
+    return SizedBox(
+      width: 72,
+      child: Column(
+        children: [
+          Icon(icon, size: 20, color: color),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
           ),
-        ),
-        Text(label, style: theme.textTheme.labelSmall?.copyWith(color: color)),
-      ],
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(color: color),
+          ),
+        ],
+      ),
     );
   }
 }

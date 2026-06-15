@@ -158,7 +158,7 @@ class _CourseSearchScreenState extends State<CourseSearchScreen> {
                     Text('강의 탐색', style: theme.textTheme.headlineSmall),
                     const SizedBox(height: 8),
                     Text(
-                      '추가한 모든 강의를 한 화면에서 보고, 분반별 평점과 시간표 상태까지 바로 비교할 수 있습니다.',
+                      '강의를 분반별 평점과 시간표 상태로 비교합니다.',
                       style: theme.textTheme.bodyMedium,
                     ),
                     const SizedBox(height: 16),

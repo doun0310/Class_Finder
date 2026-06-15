@@ -12,9 +12,10 @@ import {
   createHash,
   randomBytes,
   randomUUID,
-  scryptSync,
+  scrypt,
   timingSafeEqual,
 } from 'node:crypto';
+import { promisify } from 'node:util';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { PasswordResetDto } from './dto/password-reset.dto';
@@ -27,6 +28,7 @@ import { SocialTokenVerifier } from './social-token-verifier.service';
 const sessionLifetimeMs = 1000 * 60 * 60 * 24 * 30;
 const loginLockMs = 1000 * 30;
 const maxFailedLoginCount = 5;
+const scryptAsync = promisify(scrypt);
 
 @Injectable()
 export class AuthService {
@@ -59,7 +61,7 @@ export class AuthService {
         department: input.department.trim(),
         grade: input.grade,
         passwordSalt: salt,
-        passwordHash: this.hashPassword(input.password, salt),
+        passwordHash: await this.hashPassword(input.password, salt),
       },
     });
 
@@ -79,7 +81,7 @@ export class AuthService {
 
     this.ensureUserUnlocked(user);
 
-    const isValidPassword = this.verifyPassword(
+    const isValidPassword = await this.verifyPassword(
       input.password,
       user.passwordSalt,
       user.passwordHash,
@@ -261,12 +263,23 @@ export class AuthService {
 
   private async createSession(userId: string) {
     const token = this.randomToken(32);
+    const now = new Date();
+
+    await this.prisma.authSession.deleteMany({
+      where: {
+        userId,
+        OR: [
+          { expiresAt: { lte: now } },
+          { revokedAt: { not: null } },
+        ],
+      },
+    });
 
     await this.prisma.authSession.create({
       data: {
         userId,
         tokenHash: this.hashToken(token),
-        expiresAt: new Date(Date.now() + sessionLifetimeMs),
+        expiresAt: new Date(now.getTime() + sessionLifetimeMs),
       },
     });
 
@@ -320,12 +333,17 @@ export class AuthService {
     return createHash('sha256').update(token).digest('hex');
   }
 
-  private hashPassword(password: string, salt: string) {
-    return scryptSync(password, salt, 64).toString('hex');
+  private async hashPassword(password: string, salt: string) {
+    const hash = (await scryptAsync(password, salt, 64)) as Buffer;
+    return hash.toString('hex');
   }
 
-  private verifyPassword(password: string, salt: string, expectedHash: string) {
-    const actual = Buffer.from(this.hashPassword(password, salt), 'hex');
+  private async verifyPassword(
+    password: string,
+    salt: string,
+    expectedHash: string,
+  ) {
+    const actual = Buffer.from(await this.hashPassword(password, salt), 'hex');
     const expected = Buffer.from(expectedHash, 'hex');
     return actual.length === expected.length && timingSafeEqual(actual, expected);
   }
